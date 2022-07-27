@@ -1,4 +1,13 @@
+import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
+import { IntegraionService } from './integration.service';
 
-@Module({})
+@Module({
+  imports: [HttpModule.register({
+    timeout: 50000,
+    maxRedirects: 5,
+  })],
+  providers: [IntegraionService],
+  exports: [IntegraionService]
+})
 export class IntegrationModule {}

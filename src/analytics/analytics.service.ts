@@ -16,7 +16,6 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import path from 'path';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
-import { getFollowerCount } from 'follower-count';
 import {
   CollectionInfoResponse,
   CollectionStats,
@@ -30,6 +29,7 @@ import { BlockchainService } from '../blockchain/blockchain.service';
 import Enumerable from 'linq';
 import papaparse from 'papaparse';
 import { TokenBalance } from './models/token-info';
+import { IntegraionService } from 'src/integration/integration.service';
 
 @Injectable()
 export class AnalyticsService {
@@ -52,6 +52,7 @@ export class AnalyticsService {
     @InjectQueue('waitlist') private readonly holdersQueue: Queue,
     private readonly storage: PersistentStorageService,
     private readonly blockchainService: BlockchainService,
+    private readonly integrationService: IntegraionService,
   ) {
     this.web3 = new this.web3(
       new this.web3.providers.HttpProvider(
@@ -111,8 +112,8 @@ export class AnalyticsService {
       }
       const [twitterFollowersCount, discordInfo]
         = await Promise.all([
-        this.getTwitterFollowersCount(whitelist.twitter),
-        this.getDiscordInfo(whitelist.discord)]);
+        this.integrationService.getTwitterFollowersCount(whitelist.twitter),
+        this.integrationService.getDiscordInfo(whitelist.discord)]);
 
       this.logger.debug('fetching topHolders and mutualHolders');
       const [topHolders, mutualHoldings] = await Promise.all([
@@ -1083,32 +1084,5 @@ export class AnalyticsService {
       }
     });
     return count;
-  }
-
-  private async getTwitterFollowersCount(link: string): Promise<any> {
-    if (link) {
-      const username = link.substring(link.lastIndexOf(`/`) + 1, link.length);
-      const countByApi = await getFollowerCount({
-        type: 'twitter',
-        username: username
-      });
-
-      return countByApi;
-    }
-    return null;
-  }
-
-  private async getDiscordInfo(link: string): Promise<any> {
-    if (link) {
-      const code = link.substring(link.lastIndexOf(`/`) + 1, link.length);
-      const response = await this.httpService.get(`https://discord.com/api/v9/invites/${code}?with_counts=true&with_expiration=true`).toPromise();
-
-      return {
-        name: response.data.guild.name,
-        approximateMemberCount: response.data.approximate_member_count,
-        premiumSubscriptionCount: response.data.guild.premium_subscription_count
-      };
-    }
-    return null;
   }
 }

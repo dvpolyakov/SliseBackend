@@ -6,6 +6,7 @@ import { AnalyticsService } from './analytics.service';
 import { BullModule } from '@nestjs/bull';
 import { PersistentStorageModule } from '../persistentstorage/persistentstorage.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
+import { IntegrationModule } from 'src/integration/integration.module';
 
 @Module({
   imports: [BullModule.registerQueue({
@@ -13,8 +14,10 @@ import { BlockchainModule } from '../blockchain/blockchain.module';
   }), PrismaModule, HttpModule.register({
     timeout: 50000,
     maxRedirects: 5,
-  }), PersistentStorageModule,
-    BlockchainModule],
+  }), 
+  PersistentStorageModule,
+  BlockchainModule,
+  IntegrationModule],
   providers: [AnalyticsService, AnalyticsController],
   exports: [AnalyticsService, AnalyticsController]
 })
