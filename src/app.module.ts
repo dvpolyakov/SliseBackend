@@ -15,6 +15,7 @@ import { memoryStorage } from 'multer';
 import { PersistentStorageModule } from './persistentstorage/persistentstorage.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { WarmupModule } from './warmup/warmup.module';
+import { IntegrationModule } from './integration/integration.module';
 
 @Module({
   imports: [AuthModule, AnalyticsModule, PrismaModule, RedisModule.forRoot({
@@ -42,7 +43,8 @@ import { WarmupModule } from './warmup/warmup.module';
     MulterModule.register(),
     PersistentStorageModule,
     BlockchainModule,
-    WarmupModule
+    WarmupModule,
+    IntegrationModule
     // SentryModule.forRoot({
     //   dsn: 'sentry_io_dsn',
     //   debug: true,
