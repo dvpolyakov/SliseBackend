@@ -11,6 +11,10 @@ import { BullModule } from '@nestjs/bull';
 import { TokenProcessorModule } from './tokenprocessor/tokenprocessor.module';
 import { RedisModule } from '@nestjs-modules/ioredis';
 import { MulterModule } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
+import { PersistentStorageModule } from './persistentstorage/persistentstorage.module';
+import { BlockchainModule } from './blockchain/blockchain.module';
+import { WarmupModule } from './warmup/warmup.module';
 
 @Module({
   imports: [AuthModule, AnalyticsModule, PrismaModule, RedisModule.forRoot({
@@ -35,9 +39,10 @@ import { MulterModule } from '@nestjs/platform-express';
     }),
     SchedulerModule, ScheduleModule.forRoot(),
     TokenProcessorModule,
-    MulterModule.register({
-      dest: './uploads',
-    })
+    MulterModule.register(),
+    PersistentStorageModule,
+    BlockchainModule,
+    WarmupModule
     // SentryModule.forRoot({
     //   dsn: 'sentry_io_dsn',
     //   debug: true,
@@ -51,6 +56,6 @@ import { MulterModule } from '@nestjs/platform-express';
 })
 export class AppModule implements OnModuleInit {
   onModuleInit() {
-    console.log('MAIN ', process.pid);
+
   }
 }

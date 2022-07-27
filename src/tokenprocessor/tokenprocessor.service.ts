@@ -4,18 +4,16 @@ import { Job } from 'bull';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
-import Redlock from 'redlock';
+import papaparse from 'papaparse';
 
 @Processor({ name: 'waitlist', scope: Scope.DEFAULT })
 export class TokenProcessorService {
-  private readonly redlock;
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly analyticsService: AnalyticsService,
     private readonly prisma: PrismaService
   ) {
-    this.redlock = new Redlock([redis]);
   }
 
   private readonly logger = new Logger(TokenProcessorService.name);
@@ -29,8 +27,28 @@ export class TokenProcessorService {
     const holders = job.data.holdersRequest;
 
     try {
+      const file = holders.file;
+      const data = Buffer.from(file.Body).toString('utf8');
+      const parsedCsv = await papaparse.parse(data, {
+        header: false,
+        skipEmptyLines: true,
+        complete: (results) => results.data
+      });
+      //TODO: change to map in map
+      let addresses: string[] = [];
+      parsedCsv.data.map((subarray) => subarray.map((address) => {
+        addresses.push(address);
+      }));
+      await this.prisma.waitlist.update({
+        where: {
+          id: holders.id
+        },
+        data: {
+          size: addresses.length
+        }
+      })
       let savedHolders: any[] = [];
-      holders.addresses.map((tokenHolder) => {
+      addresses.map((tokenHolder) => {
         const dataHolder = {
           address: tokenHolder.toLowerCase(),
           totalBalanceTokens: 0,
@@ -46,6 +64,9 @@ export class TokenProcessorService {
       await this.prisma.tokenHolder.createMany({
         data: savedHolders
       });
+
+      //await this.analyticsService.startTargeting(holders.id);
+
       this.logger.debug(`saved ${savedHolders.length} holders`);
     } catch (e) {
       const error = e.toString();

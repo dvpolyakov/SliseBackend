@@ -98,7 +98,7 @@ model TargetingHolders {
   holderId   String
   waitlist   Waitlist    @relation(fields: [waitlistId], references: [id])
   waitlistId String
-  vector     Int
+  vector     Float
 }
 
 enum TransferProcessedStatus {

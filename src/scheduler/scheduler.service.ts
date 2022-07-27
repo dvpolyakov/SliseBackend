@@ -31,7 +31,7 @@ export class SchedulerService {
   //   this.logger.debug("holders saved successfully!");
   // }
 
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  //@Cron(CronExpression.EVERY_10_SECONDS)
   async processTokens() {
     this.logger.debug('fetching tokens');
     const holders = await this.prisma.tokenHolder.findMany({
@@ -99,7 +99,7 @@ export class SchedulerService {
     this.logger.debug('fetching tokens completed');
   }
 
-  @Cron(CronExpression.EVERY_10_SECONDS)
+  //@Cron(CronExpression.EVERY_10_SECONDS)
   async fetchBalances() {
     this.logger.debug('fetching balances');
     const holders = await this.prisma.tokenHolder.findMany({
@@ -107,7 +107,7 @@ export class SchedulerService {
         processedBalance: false,
         processedBalanceFail: false
       },
-      take: 5
+      take: 10
     });
     await Promise.all(holders.map(async (holder) => {
       try{

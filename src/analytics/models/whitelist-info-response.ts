@@ -7,5 +7,5 @@ export class WhitelistInfoResponse {
   id: string;
   @ApiProperty({ type: String, required: false })
   @IsString()
-  contractAddress?: string;
+  name?: string;
 }

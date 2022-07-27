@@ -9,7 +9,8 @@ import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
   MutualHoldingsResponse,
-  TopHoldersResponse,
+  TargetingResponse,
+  TopHoldersDashboardResponse,
   WhitelistStatisticsResponse
 } from './models/whitelist-statistics-response';
 
@@ -19,81 +20,9 @@ import {
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {
   }
-
-  @Get('getTokens')
-  @UseInterceptors(TransformInterceptor)
-  async getTokens(): Promise<Token[]> {
-    const result = await this.analyticsService.getTokens();
-    return result;
-  }
-
-  /*
-    @Get('tokenEventsByContracts/:token')
-    @UseInterceptors(TransformInterceptor)
-    async getHoldersByContracts(
-      @Param('token') token: string,
-      @Query('network') network: number,
-      @Query('pageSize') pageSize: number): Promise<BlockChainUserEvent[]> {
-      return await this.analyticsService.tokenEventsByContract(network, token, pageSize);
-    }*/
-
-  /*
-   @Get('token/:token')
-   @UseInterceptors(TransformInterceptor)
-   async getHolders(
-       @Param('token') token: string,
-       @Query('network') network: number,
-       @Query('pageSize') pageSize: number): Promise<TokenHolder[]> {
-       return await this.analyticsService.tokenHolders(network, token, pageSize);
-   }
-
-   @Get('tokenHolders/:token')
-   @UseInterceptors(TransformInterceptor)
-   async getTimelineHolders(
-       @Param('token') token: string,
-       @Query('network') network: number,
-       @Query('pageSize') pageSize: number,
-       @Query('startDate') startDate: string,
-       @Query('endDate') endDate: string,
-       @Query('period') period: string): Promise<TimestampEvent[]> {
-       return await this.analyticsService.tokenHoldersBetweenDates(network, token, pageSize, startDate, endDate, period);
-   }
-
-   @Get('tokenFromSource/:token')
-   @UseInterceptors(TransformInterceptor)
-   async getHoldersFromSource(
-       @Param('token') token: string,
-       @Query('network') network: number,
-       @Query('pageSize') pageSize: number): Promise<TokenHolder[]> {
-       return await this.analyticsService.tokenHoldersFromSource(network, token, pageSize);
-   }
-
-   @Get('eventsByAddress/:contractAddress')
-   @UseInterceptors(TransformInterceptor)
-   async getEventsByAddress(
-       @Param('contractAddress') contractAddress: string,
-       @Query('startDate') startDate: string,
-       @Query('endDate') endDate: string,
-       @Query('pageSize') pageSize: number,
-       @Query('page') page: number): Promise<any> {
-       return await this.analyticsService.eventsByAddress(contractAddress, startDate, endDate, pageSize, page);
-   }
-
-   @Get('eventsByContractsAndAddreses')
-   @UseInterceptors(TransformInterceptor)
-   async getEventsByContractsAndAddress(
-       @Query(new ValidationPipe({ transform: true })) request: BlockChainEventRequest): Promise<BlockChainUserEvent[]> {
-       const response = await this.analyticsService.eventsByContractsAndAddresses(request.contractsAddresses, request.addresses);
-
-       return response;
-   }*/
-
-  @Get('parseHolders')
-  @UseInterceptors(TransformInterceptor)
-  async parseHolders(
-    @Query(new ValidationPipe(/*{ transform: true }*/)) request: WhitelistInfoRequest): Promise<string> {
-    const id = await this.analyticsService.parseHolders(request);
-    return id;
+  @Get('test')
+  async testEndpoint(){
+    return await this.analyticsService.test();
   }
 
   @Post('storeWhitelist')
@@ -121,8 +50,22 @@ export class AnalyticsController {
 
   @Get('getTopHolders')
   @UseInterceptors(TransformInterceptor)
-  async getTopHolders(@Query('id') id: string): Promise<TopHoldersResponse[]> {
+  async getTopHolders(@Query('id') id: string): Promise<TopHoldersDashboardResponse> {
     const response = await this.analyticsService.getTopHolders(id);
+    return response;
+  }
+
+  @Get('getExport')
+  @UseInterceptors(TransformInterceptor)
+  async getExport(@Query('vector') vector: number): Promise<TargetingResponse> {
+    const response = await this.analyticsService.exportTargets(vector);
+    return response;
+  }
+
+  @Get('getTargets')
+  @UseInterceptors(TransformInterceptor)
+  async getTargets(@Query('vector') vector: number): Promise<number> {
+    const response = await this.analyticsService.getTargets(vector);
     return response;
   }
 

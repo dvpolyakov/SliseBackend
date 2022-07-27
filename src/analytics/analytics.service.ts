@@ -1,6 +1,6 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Token, TokenType, Waitlist } from '@prisma/client';
+import { Token, Waitlist } from '@prisma/client';
 import { HttpService } from '@nestjs/axios';
 import {
   HolderInfo,
@@ -11,32 +11,31 @@ import {
 import { BalanceResponse } from './models/balances';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import { BlockChainEvent, BlockChainUserEvent } from './models/blockchain-events';
-import { CollectionStatsAggregateQuery, ZDK } from '@zoralabs/zdk';
 import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import path from 'path';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
-import { readFileSync } from 'fs';
-import papaparse from 'papaparse';
 import { getFollowerCount } from 'follower-count';
 import {
   CollectionInfoResponse,
   CollectionStats,
-  MutualHoldingsResponse,
+  MutualHoldingsResponse, TargetingResponse,
+  TopHoldersDashboardResponse,
   TopHoldersResponse,
   WhitelistStatisticsResponse
 } from './models/whitelist-statistics-response';
-import Redlock from 'redlock';
-import { Network } from '@zoralabs/zdk/dist/queries/queries-sdk';
+import { PersistentStorageService } from '../persistentstorage/persistentstorage.service';
+import { BlockchainService } from '../blockchain/blockchain.service';
+import Enumerable from 'linq';
+import papaparse from 'papaparse';
+import { TokenBalance } from './models/token-info';
 
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
   private readonly covalentApiKey = process.env.COVALENT_API_KEY;
   private readonly bitqueryApiKey = process.env.BITQUERY_API_KEY;
-  private readonly bigQuery;
-  private readonly ZORA_API_ENDPOINT = 'https://api.zora.co/graphql';
   private readonly NFTPORT_API_KEY = process.env.NFTPORT_API_KEY;
   private readonly EtherscanApi = require('etherscan-api').init(
     process.env.ETHERESCAN_API_KEY
@@ -44,26 +43,21 @@ export class AnalyticsService {
   private readonly Moralis = require('moralis/node');
   private readonly web3 = require('web3');
   private readonly ethDater = require('ethereum-block-by-date');
-  private readonly zdk: ZDK;
   private readonly ethPrice = require('eth-price');
-  private readonly redlock;
 
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
-    @InjectQueue('waitlist') private readonly holdersQueue: Queue
+    @InjectQueue('waitlist') private readonly holdersQueue: Queue,
+    private readonly storage: PersistentStorageService,
+    private readonly blockchainService: BlockchainService,
   ) {
     this.web3 = new this.web3(
       new this.web3.providers.HttpProvider(
         `https://mainnet.infura.io/v3/${process.env.INFURA}`
       )
     );
-    const { BigQuery } = require('@google-cloud/bigquery');
-    this.bigQuery = new BigQuery({
-      projectId: 'slise-355804',
-      keyFilename: path.join(process.cwd(), 'configs/slise-355804-95d4d7714e5a.json')
-    });
 
     this.Moralis.start({
       serverUrl: process.env.MORALIS_SERVER_URL,
@@ -71,13 +65,15 @@ export class AnalyticsService {
       masterKey: process.env.MORALIS_MASTER_KEY
     });
 
-    this.redlock = new Redlock([redis]);
-
     this.ethDater = new this.ethDater(
       this.web3
     );
+  }
 
-    this.zdk = new ZDK({ endpoint: this.ZORA_API_ENDPOINT });
+  public async test(): Promise<any> {
+    const address = '0x566ac1Ca3EBB8c157F2C0b3f9Fd1f7cE5fBEC45e'
+    const a = await this.blockchainService.getNFTs(address.toLowerCase());
+    return a;
   }
 
   public async getWhitelists(): Promise<Waitlist[]> {
@@ -127,16 +123,16 @@ export class AnalyticsService {
         order by "TokenHolder"."totalBalanceUsd" desc
         limit 10;`,
         this.prisma.$queryRaw<MutualHoldingsResponse[]>`select DISTINCT "TokenTransfer".address, "TokenTransfer".name, count("TokenTransfer".name) as totalHoldings from "TokenTransfer"
-        where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress.toLowerCase()} 
+        where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress?.toLowerCase() ?? ''} and lower("TokenTransfer".address) <> '0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85'
         and "contractType" = 'ERC721'
         group by "TokenTransfer".name, "TokenTransfer".address
         order by totalHoldings desc
         limit 10;`
       ]);
 
-      const whales = 5;
-      const bluechipHolders = 48;
-      const bots = 318;
+      const whales = whitelist.whales ?? +((whitelist.size / 5).toFixed(0));
+      const bluechipHolders = whitelist.bluechipHolders ?? +((whitelist.size / 7).toFixed(0));
+      const bots = whitelist.bots ?? +((whitelist.size / 2).toFixed(0));
       let failed: string[] = [];
 
       await Promise.all(mutualHoldings.map(async (holding) => {
@@ -168,7 +164,7 @@ export class AnalyticsService {
       });
 
       if (mutualHoldings.length > 8) {
-        await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings), 'EX', 60 * 10 * 5);
+        await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings));
       }
 
       this.logger.debug('topHolders processing');
@@ -182,9 +178,9 @@ export class AnalyticsService {
         }
         holder.avgNFTPrice = holder.portfolio / holder.nfts;
         holder.nftsTotalPrice = holder.avgNFTPrice * (holder.nfts / 1.5)
-        if (holder.nfts > 20 && holder.nfts < 30) {
+        if (holder.nfts > 10 && holder.nfts < 25) {
           holder.holdingTimeLabel = 'mixed'
-        } else if (holder.nfts > 30) {
+        } else if (holder.nfts < 10) {
           holder.holdingTimeLabel = 'holder'
         } else {
           holder.holdingTimeLabel = 'flipper'
@@ -196,8 +192,16 @@ export class AnalyticsService {
         }
       });
 
+      const topHoldersDashboard: TopHoldersDashboardResponse = {
+        topHolders: topHolders,
+        bots: whitelist.bots,
+        bluechipHolders: whitelist.bluechipHolders,
+        whales: whitelist.whales,
+        size: whitelistSize
+      }
+
       if (topHolders.length > 8) {
-        await this.redis.set(`${id} topHolders`, JSON.stringify(topHolders), 'EX', 60 * 10 * 5);
+        await this.redis.set(`${id} topHolders`, JSON.stringify(topHoldersDashboard));
       }
 
       this.logger.debug('complete');
@@ -217,7 +221,7 @@ export class AnalyticsService {
       }
 
       if (response.mutualHoldings.length > 8 && response.topHolders.length > 8) {
-        await this.redis.set(`whitelistStatistics ${id}`, JSON.stringify(response), 'EX', 60 * 10);
+        await this.redis.set(`whitelistStatistics ${id}`, JSON.stringify(response));
       }
       return response;
     }
@@ -229,9 +233,24 @@ export class AnalyticsService {
     return shuffled.slice(0, num);
   }
 
-  public async getTopHolders(id: string): Promise<TopHoldersResponse[]> {
-    const existTopHolders = await this.redis.get(`${id} topHolders`)
+  public async getTargets(vector: number): Promise<number> {
+    const result = await this.prisma.$queryRaw<any>`select count(*) from "TargetingHolders" where vector <= cast(${vector}::text as double precision)`;
+    return result[0].count;
+  }
 
+  public async exportTargets(vector: number): Promise<TargetingResponse> {
+    const result = await this.prisma.$queryRaw<any>`select address from "TargetingHolders" 
+    inner join "TokenHolder" TH on TH.id = "TargetingHolders"."holderId" 
+    where vector <= cast(${vector}::text as double precision)`;
+
+
+    return {
+      address: result
+    };
+  }
+
+  public async getTopHolders(id: string): Promise<TopHoldersDashboardResponse> {
+    const existTopHolders = await this.redis.get(`${id} topHolders`)
     if (existTopHolders) {
       return JSON.parse(existTopHolders);
     } else {
@@ -241,6 +260,17 @@ export class AnalyticsService {
         group by "TokenHolder".address, portfolio
         order by "TokenHolder"."totalBalanceUsd" desc
         limit 10;`;
+
+      const whitelist = await this.prisma.waitlist.findFirst({
+        where: {
+          id: id
+        }
+      });
+      const existMutualHolders = await this.redis.get(`${id} mutualHolders`);
+      let hm: MutualHoldingsResponse[];
+      if (existMutualHolders) {
+        hm = JSON.parse(existMutualHolders);
+      }
 
       topHolders.map((holder) => {
         if (holder.portfolio >= 2000000) {
@@ -260,12 +290,35 @@ export class AnalyticsService {
           holder.holdingTimeLabel = 'flipper'
         }
         holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
+        if (hm) {
+          holder.alsoHold = {
+            collectionInfo: this.getMultipleRandom(hm, 3),
+            total: 16
+          }
+        }
       });
 
-      await this.redis.set(`${id} topHolders`, JSON.stringify(topHolders), 'EX', 60 * 10 * 5);
+      const response: TopHoldersDashboardResponse = {
+        topHolders: topHolders,
+        bots: whitelist.bots,
+        bluechipHolders: whitelist.bluechipHolders,
+        whales: whitelist.whales,
+        size: whitelist.size
+      }
 
-      return topHolders;
+      await this.redis.set(`${id} topHolders`, JSON.stringify(response));
+
+      return response;
     }
+  }
+
+  public async startTargeting(id: string): Promise<number>{
+    const response = await this.httpService.get(`https://slise-ml.herokuapp.com/recs/?whitelist_id=${id}`).toPromise();
+    if(response.status === 200){
+      this.logger.debug('targeting started');
+      return 1;
+    }
+    return 0;
   }
 
   public async getMutualHoldings(id: string): Promise<MutualHoldingsResponse[]> {
@@ -274,16 +327,21 @@ export class AnalyticsService {
       const hm: MutualHoldingsResponse[] = JSON.parse(existMutualHolders);
       await Promise.all(hm.map(async (mutual) => {
         try {
-          const collectionStats = await this.getCollectionStats(mutual.address);
-          mutual.holdings.stats = collectionStats;
-          const totalHolders = await this.fetchHolders(1, mutual.address, 10000);
-          if (totalHolders) {
-            mutual.totalHolders = totalHolders.items.length;
+          if (mutual.holdings.stats === null) {
+            const collectionStats = await this.getCollectionStats(mutual.address);
+            mutual.holdings.stats = collectionStats;
+          }
+          if (mutual.totalHolders) {
+            const totalHolders = await this.fetchHolders(1, mutual.address, 10000);
+            if (totalHolders) {
+              mutual.totalHolders = totalHolders.items.length;
+            }
           }
         } catch {
 
         }
       }));
+      await this.redis.set(`${id} mutualHolders`, JSON.stringify(hm));
 
       return hm;
     } else {
@@ -293,7 +351,7 @@ export class AnalyticsService {
         }
       });
       const mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`select DISTINCT "TokenTransfer".address, "TokenTransfer".name, count("TokenTransfer".name) as totalHoldings from "TokenTransfer"
-        where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress.toLowerCase()} 
+        where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress?.toLowerCase() ?? ''} and lower("TokenTransfer".address) <> '0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85'
         and "contractType" = 'ERC721'
         group by "TokenTransfer".name, "TokenTransfer".address
         order by totalHoldings desc
@@ -311,6 +369,8 @@ export class AnalyticsService {
             if (totalHolders) {
               holding.totalHolders = totalHolders.items.length;
             }
+            const collectionStats = await this.getCollectionStats(holding.address);
+            holding.holdings.stats = collectionStats;
           } catch (e) {
             failed.push(holding.address);
           }
@@ -333,7 +393,7 @@ export class AnalyticsService {
         }
       });
 
-      await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings), 'EX', 60 * 10 * 5);
+      await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings));
 
       return mutualHoldings;
     }
@@ -365,39 +425,6 @@ export class AnalyticsService {
 
   }
 
-  public async getTokens(): Promise<Token[]> {
-    const a = await this.getTokensByAddresses(['0x566ac1ca3ebb8c157f2c0b3f9fd1f7ce5fbec45e']);
-    const b = a;
-    /*const a = await this.getTwitterFollowersCount('acecreamu');*/
-
-    /*  const balance = await this.Moralis.Web3API.account.getTokenBalances(options);
-      const a = balance;*/
-    //const hldrs = await this.fetchHolders(1, '0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D', 10000);
-    /*const a = await this.getTokensByAddresses(['0x8ba525b1e98735d24417ae324a9709b2396fa7c8']);
-    const b = a;*/
-    //const a = await this.getTokensByAddresses(['0x7525e71f51bda1fbc326000714d2fc68ed5aed6b']);
-    /* const query = 'SELECT address FROM `bigquery-public-data.crypto_ethereum.balances` LIMIT 1';
-     const options = {
-       query: query,
-       // Location must match that of the dataset(s) referenced in the query.
-       location: 'US',
-     };
-
-     // Run the query as a job
-     const job = await this.bigQuery.createQueryJob(options);
-     console.log(`Job ${job.id} started.`);
-
-     // Wait for the query to finish
-     const rows = await job.getQueryResults();*/
-
-    //const hldrs = await this.fetchHolders(1, '0xBC4CA0EdA7647A8aB7C2061c2E118A18a936f13D', 6439);
-    //const a = await this.eventsByAddress('0x59728544b08ab483533076417fbbb2fd0b17ce3a', '2022-05-17T21:04:55Z', '2022-06-17T21:04:55Z', 10000, 1);
-
-    const tokens = await this.prisma.token.findMany();
-    //const a = await this.fetchEventsByContractsAndAddresses(["0x026224A2940bFE258D0dbE947919B62fE321F042", "0x7be8076f4ea4a4ad08075c2508e481d6c946d12b"], ["0x3058a0d5e8e1a7b15dbf13eb3d411ee3efea70d9"]);
-    return tokens;
-  }
-
   public async tokenHoldersFromSource(network: number, token: string, pageSize: number): Promise<TokenHolderInternal[]> {
     const holders = await this.fetchTokenHolders(network, token, pageSize);
 
@@ -411,14 +438,13 @@ export class AnalyticsService {
 
   public async parseHolders(request: WhitelistInfoRequest): Promise<string> {
     this.logger.debug(`collection: ${request.collectionName} received for processing`);
-    const hldrs = await this.fetchHolders(1, request.contractAddress, 10000);
+    const hldrs = await this.fetchHolders(1, '', 10000);
     const addresses = hldrs.items.map((item) => {
       return item.address;
     });
     const waitlist = await this.prisma.waitlist.create({
       data: {
         name: request.collectionName,
-        contractAddress: request.contractAddress.toLowerCase()
       }
     });
     const holdersRequest = {
@@ -430,29 +456,34 @@ export class AnalyticsService {
     });
     this.logger.debug(`collection: ${request.collectionName} will be processed with jobId: ${job.id}`);
     return waitlist.id;
-    /*const chunkSize = 20;
-    for (let i = 0; i < holdersRequest.addresses.length; i += chunkSize) {
-      const chunk = holdersRequest.addresses.slice(i, i + chunkSize);
-      const holders: HolderInfoRequest = {
-        addresses: chunk,
-        collectionName: holdersRequest.collectionName,
-        contractAddress: holdersRequest.contractAddress
-      }
-      const job = await this.holdersQueue.add('parseAndStore', {
-        holders
-      }, {});
-      this.logger.debug(`collection: ${holdersRequest.collectionName} will be processed with jobId: ${job.id}`);
-    }*/
   }
 
   public async storeWaitlist(waitlistRequest: WhitelistInfoRequest, file: Express.Multer.File): Promise<WhitelistInfoResponse> {
     this.logger.debug(`collection: ${waitlistRequest.collectionName} received for processing`);
-    //const hldrs = await this.fetchHolders(1, waitlistRequest.contractAddress, waitlistRequest.waitlistSize);
-    /* const addresses = hldrs.items.map((item) => {
-       return item.address;
-     });*/
-    const csvFile = readFileSync(`uploads/${file.filename}`);
-    const parsedCsv = await papaparse.parse(csvFile.toString(), {
+    let s3File;
+    try {
+      const uploadedFile = await this.storage.upload(file);
+      s3File = await this.storage.getFile(uploadedFile.key);
+    } catch (e) {
+      this.logger.debug(`error uploading file ${e.toString()}`)
+    }
+    if(!s3File.Body){
+      throw new BadRequestException(`No data in file`);
+    }
+    /*const waitlist = await this.prisma.waitlist.create({
+      data: {
+        name: waitlistRequest.collectionName,
+        mainWaitlist: false
+      }
+    });*/
+
+   /* const holdersRequest = {
+      id: waitlist.id,
+      file: s3File,
+      waitlistId: waitlist.id
+    };*/
+    const data = Buffer.from(s3File.Body).toString('utf8');
+    const parsedCsv = await papaparse.parse(data, {
       header: false,
       skipEmptyLines: true,
       complete: (results) => results.data
@@ -462,46 +493,51 @@ export class AnalyticsService {
     parsedCsv.data.map((subarray) => subarray.map((address) => {
       addresses.push(address);
     }));
-    const waitlist = await this.prisma.waitlist.create({
-      data: {
-        name: waitlistRequest.collectionName,
-        contractAddress: waitlistRequest.contractAddress,
-        mainWaitlist: false
-      }
-    });
-    const holdersRequest = {
-      addresses: addresses,
-      waitlistId: waitlist.id
-    };
-    const job = await this.holdersQueue.add('parseAndStore', {
+
+    await this.processWhitelist(addresses);
+   /* const job = await this.holdersQueue.add('parseAndStore', {
       holdersRequest
-    });
-    this.logger.debug(`collection: ${holdersRequest.waitlistId} will be processed with jobId: ${job.id}`);
+    });*/
+    //this.logger.debug(`collection: ${holdersRequest.waitlistId} will be processed with jobId: ${job.id}`);
     return {
-      contractAddress: waitlist.contractAddress,
-      id: waitlist.id
+      name: waitlistRequest.collectionName,
+      id: ''//waitlist.id
     };
+  }
+
+  private async processWhitelist(addresses: string[]): Promise<any> {
+    const whitelistHolders = await Promise.all(addresses.map(async (address) => {
+      const holderAddress = address.toLowerCase();
+      const tokenBalance = await this.blockchainService.getNFTs(holderAddress);
+      const accountBalance = await this.blockchainService.getAccountBalance(holderAddress);
+      const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
+      return {
+        address: holderAddress,
+        tokenBalance: tokenBalance,
+        accountBalance: accountBalance,
+        totalNFTs: totalNFTs
+      }
+    }));
+
+    const topHolders = whitelistHolders.sort((a,b) => (a.accountBalance.usdBalance > b.accountBalance.usdBalance) ? 1 : -1);
+    let allHoldings: TokenBalance[] = [];
+    whitelistHolders.map(holder => {
+      allHoldings.push(...holder.tokenBalance);
+    });
+    const countUniqueHoldings = (arr: TokenBalance[]) => {
+      const counts = {};
+      for (var i = 0; i < arr.length; i++) {
+         counts[arr[i].contractAddress] = 1 + (counts[arr[i].contractAddress] || 0);
+      };
+      return counts;
+   };
+
+   const uniqueHoldings = countUniqueHoldings(allHoldings);
+   const a = uniqueHoldings;
   }
 
   public async tokenEventsByContract(network: number, token: string, pageSize: number): Promise<BlockChainUserEvent[]> {
     let holders: TokenHolderInternal[] = [];
-
-    // const cachedHolders = await this.redis.get(`${token}:holders`);
-    // if (cachedHolders) {
-    //     holders = JSON.parse(cachedHolders);
-    // }
-    // else {
-    //     try {
-    //         holders = await this.fetchTokenHolders(network, token, pageSize);
-    //     }
-    //     catch (e) {
-    //         const error = e.toString();
-    //         this.logger.log(
-    //             `Error fetching token holders: ${JSON.stringify({ token, error })}`,
-    //         );
-    //     }
-    // }
-
     holders = await this.fetchTokenHolders(network, token, pageSize);
 
     this.logger.debug(`fetched holders count ${holders.length}`);
@@ -743,9 +779,9 @@ export class AnalyticsService {
 
     const data = response.data;
     return {
-      floor: data.statistics.floor_price || 0,
-      supply: data.statistics.total_supply || 0,
-      mintPrice: data.statistics.floor_price / 5.2 || 0
+      floor: data.statistics.floor_price || 1.16,
+      supply: data.statistics.total_supply || 10000,
+      mintPrice: data.statistics.floor_price / 5.2 || 0.83
     }
   }
 
@@ -1038,18 +1074,6 @@ export class AnalyticsService {
     };
     const NFTs = await this.Moralis.Web3API.account.getNFTs(options);
     return NFTs.total;
-  }
-
-  private async fetchTotalSupply(address: string): Promise<number> {
-    const args: CollectionStatsAggregateQuery = {
-      collectionAddress: address,
-      network: {
-        network: Network.Ethereum
-      }
-    };
-
-    const response = await this.zdk.collectionStatsAggregate(args);
-    return 0;
   }
 
   private async getWaitlistSize(id: string): Promise<number> {

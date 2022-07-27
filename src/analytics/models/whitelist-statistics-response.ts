@@ -13,6 +13,14 @@ export class TopHoldersResponse {
   tradingVolume: number;
 }
 
+export class TopHoldersDashboardResponse {
+  topHolders: TopHoldersResponse[];
+  bots: number;
+  whales: number;
+  bluechipHolders: number;
+  size: number;
+}
+
 export class MutualHoldingsResponse {
   address: string;
   name: string;
@@ -62,4 +70,8 @@ export class WhitelistResponse {
   bots: number;
   twitter?: string;
   discord?: string;
+}
+
+export class TargetingResponse {
+  address?: string[]
 }

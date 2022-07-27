@@ -13,16 +13,16 @@ async function bootstrap() {
     "methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
     "preflightContinue": false,
     "optionsSuccessStatus": 204,
-    "credentials":true
+    "credentials": true
   };
   app.enableCors(options);
- /* app.enableCors(
-    {
-      origin: ['https://app.slise.xyz'],
-      methods: ['POST', 'PUT', 'DELETE', 'GET'],
-      allowedHeaders: ['Access-Control-Allow-Origin'],
-    }
-  );*/
+  /* app.enableCors(
+     {
+       origin: ['https://app.slise.xyz'],
+       methods: ['POST', 'PUT', 'DELETE', 'GET'],
+       allowedHeaders: ['Access-Control-Allow-Origin'],
+     }
+   );*/
   const config = new DocumentBuilder()
     .setTitle('Slice')
     .setDescription('Slice API description')
@@ -35,9 +35,7 @@ async function bootstrap() {
   });
 
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('swagger/slice', app, document);
-
-  console.log(`used port: ${port}`)
+  SwaggerModule.setup('swagger', app, document);
   await app.listen(port);
 }
 bootstrap();
