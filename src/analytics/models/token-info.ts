@@ -11,7 +11,7 @@ export interface TokenBalance {
 }
 
 export interface TokenData {
-  tokenId: string
+  tokenId: number
   name: string
   amount: number
   image: string

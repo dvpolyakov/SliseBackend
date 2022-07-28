@@ -25,9 +25,16 @@ export class BlockchainService {
     );
   }
 
+  private getNewSdk(network: string): Sdk {
+    return new Sdk(this.sdkPrivatKey, {
+      networkName: network as NetworkNames,
+    });
+  }
+
   public async getNFTs(address: string): Promise<TokenBalance[]> {
     try {
-      const data = await this.etherspotSDK.getNftList({
+      const sdk = this.getNewSdk('mainnet');
+      const data = await sdk.getNftList({
         account: address,
       });
       return data.items.map(item => {
@@ -43,7 +50,7 @@ export class BlockchainService {
             return {
               tokenId: +nft.tokenId,
               name: nft.name,
-              amount: +nft.amount,
+              amount: nft.amount,
               image: nft.image
             }
           })
@@ -74,10 +81,11 @@ export class BlockchainService {
   }
 
   private async getEthBalance(address: string): Promise<number> {
-    const balance = await this.etherspotSDK.getAccountBalances({
+    const sdk = this.getNewSdk('mainnet');
+    const balance = await sdk.getAccountBalances({
       account: address
     });
-    const hexBalance = balance.items[0].balance._hex ?? 0;
+    const hexBalance = balance.items[0].balance._hex ?? '0';
     const parsed = parseInt(hexBalance, 16);
     const toEther = +(this.web3.utils.fromWei(parsed.toString(), 'ether'));
     return toEther;

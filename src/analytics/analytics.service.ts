@@ -106,7 +106,7 @@ export class AnalyticsService {
           nftDescription: token.nftDescription,
           nftVersion: token.nftVersion,
           tokenType: mapTokenType(token.tokenType.toUpperCase()),
-          whitelistMemberId: request.whitelistId,
+          whitelistMemberId: whitelistMember.id,
           items: JSON.stringify(token.nfts)
         }
       });
