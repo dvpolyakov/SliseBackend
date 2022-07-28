@@ -4,6 +4,7 @@ import { AccountBalanceResponse } from './models/account-balance';
 import { TokenBalance } from '../analytics/models/token-info';
 import { HttpService } from '@nestjs/axios';
 import { Redis } from 'ioredis';
+import { InjectRedis } from '@nestjs-modules/ioredis';
 
 @Injectable()
 export class BlockchainService {
@@ -13,7 +14,7 @@ export class BlockchainService {
   private readonly ethPrice = require('eth-price');
   private readonly web3 = require('web3');
 
-  constructor(private readonly httpService: HttpService, private readonly redis: Redis) {
+  constructor(private readonly httpService: HttpService, @InjectRedis() private readonly redis: Redis) {
     this.etherspotSDK = new Sdk(this.sdkPrivatKey, {
       networkName: 'mainnet' as NetworkNames,
     });
@@ -25,28 +26,32 @@ export class BlockchainService {
   }
 
   public async getNFTs(address: string): Promise<TokenBalance[]> {
-    const data = await this.etherspotSDK.getNftList({
-      account: address,
-    });
-    return data.items.map(item => {
-      return {
-        contractName: item.contractName,
-        contractSymbol: item.contractSymbol,
-        contractAddress: item.contractAddress,
-        tokenType: item.tokenType,
-        nftVersion: item.nftVersion,
-        nftDescription: item.nftDescription,
-        balance: +item.balance,
-        nfts: item.items.map(nft => {
-          return {
-            tokenId: +nft.tokenId,
-            name: nft.name,
-            amount: +nft.amount,
-            image: nft.image
-          }
-        })
-      }
-    });
+    try {
+      const data = await this.etherspotSDK.getNftList({
+        account: address,
+      });
+      return data.items.map(item => {
+        return {
+          contractName: item.contractName,
+          contractSymbol: item.contractSymbol,
+          contractAddress: item.contractAddress,
+          tokenType: item.tokenType,
+          nftVersion: item.nftVersion,
+          nftDescription: item.nftDescription,
+          balance: +item.balance,
+          nfts: item.items.map(nft => {
+            return {
+              tokenId: +nft.tokenId,
+              name: nft.name,
+              amount: +nft.amount,
+              image: nft.image
+            }
+          })
+        }
+      });
+    } catch {
+      this.logger.debug(`error processing address ${address}`);
+    }
   }
 
   public async getAccountBalance(address: string): Promise<AccountBalanceResponse> {

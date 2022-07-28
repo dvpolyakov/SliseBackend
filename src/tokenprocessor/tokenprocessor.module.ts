@@ -10,6 +10,5 @@ import { PrismaModule } from '../prisma/prisma.module';
 })
 export class TokenProcessorModule implements OnModuleInit {
   onModuleInit() {
-    console.log('PROCESSOR ', process.pid);
   }
 }

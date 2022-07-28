@@ -1,11 +1,11 @@
-import { Redis } from '@nestjs-modules/ioredis';
+import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import { Injectable, Logger, OnApplicationBootstrap } from '@nestjs/common';
 
 @Injectable()
 export class WarmupService implements OnApplicationBootstrap {
   private readonly logger = new Logger(WarmupService.name);
   private readonly ethPrice = require('eth-price');
-  constructor(private readonly redis: Redis) {
+  constructor(@InjectRedis() private readonly redis: Redis) {
 
   }
   onApplicationBootstrap() {

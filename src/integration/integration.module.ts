@@ -1,6 +1,6 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
-import { IntegraionService } from './integration.service';
+import { IntegraionService } from '../integration/integration.service';
 
 @Module({
   imports: [HttpModule.register({

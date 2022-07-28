@@ -6,7 +6,7 @@ import { AnalyticsService } from './analytics.service';
 import { BullModule } from '@nestjs/bull';
 import { PersistentStorageModule } from '../persistentstorage/persistentstorage.module';
 import { BlockchainModule } from '../blockchain/blockchain.module';
-import { IntegrationModule } from 'src/integration/integration.module';
+import { IntegrationModule } from '../integration/integration.module';
 
 @Module({
   imports: [BullModule.registerQueue({

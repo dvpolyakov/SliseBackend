@@ -12,98 +12,42 @@ datasource db {
   shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
-model Token {
-  id        String   @id @default(uuid())
-  network   Int
-  name      String
-  address   String
-  symbol    String
-  logo      String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Waitlist {
-  id               String             @id @default(uuid())
+model Whitelist {
+  id               String            @id @default(uuid())
   name             String
   contractAddress  String?
-  symbol           String?
-  tokenHolders     TokenHolder[]
-  mainWaitlist     Boolean            @default(true)
-  parentWaitlist   String?
   twitter          String?
   twitterFollowers Int?
   discord          String?
   discordMembers   Int?
-  size             Int?
-  logo             String?
-  bluechipHolders  Int?
-  whales           Int?
-  bots             Int?
-  TargetingHolders TargetingHolders[]
+  size             Int
+  chainType        ChainType         @default(ETHEREUM)
+  whitelistMembers WhitelistMember[]
 }
 
-model WaitlistStatistics {
-  id              String @id @default(uuid())
-  totalBalance    Int
-  totalUsdBalance Int
-  popularTokens   Json
+model WhitelistMember {
+  id          String    @id @default(uuid())
+  address     String
+  usdBalance  Float
+  ethBalance  Float
+  lastUpdate  DateTime  @default(now())
+  whitelist   Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId String
+  tokens      Token[]
+  totalTokens Int
 }
 
-model TokenHolder {
-  id                   String             @id @default(uuid())
-  address              String
-  totalBalanceUsd      Float
-  totalBalanceTokens   Float
-  lastUpdate           DateTime           @default(now())
-  firstTransactionDate DateTime
-  ethBalance           Float
-  volume               Float
-  processedTokens      Boolean            @default(false)
-  processedBalance     Boolean            @default(false)
-  processedTokensFail  Boolean            @default(false)
-  processedBalanceFail Boolean            @default(false)
-  waitlist             Waitlist           @relation(fields: [waitlistId], references: [id])
-  waitlistId           String
-  tokens               TokenTransfer[]
-  twitter              String?
-  twitterInteractions  Int?
-  discord              String?
-  discordMessages      Int?
-  chainType            ChainType          @default(UNKNOWN)
-  forTargeting         Boolean            @default(false)
-  TargetingHolders     TargetingHolders[]
-}
-
-model TokenTransfer {
-  id                      String                  @id @default(uuid())
-  address                 String
-  tokenId                 BigInt
-  amount                  Float
-  symbol                  String
-  name                    String
-  contractType            TokenType
-  metadata                String?
-  holder                  TokenHolder             @relation(fields: [holderId], references: [id])
-  holderId                String
-  waitlistId              String
-  logo                    String?
-  transferProcessedStatus TransferProcessedStatus
-  totalSupply             Int?
-}
-
-model TargetingHolders {
-  id         String      @id @default(uuid())
-  holder     TokenHolder @relation(fields: [holderId], references: [id])
-  holderId   String
-  waitlist   Waitlist    @relation(fields: [waitlistId], references: [id])
-  waitlistId String
-  vector     Float
-}
-
-enum TransferProcessedStatus {
-  STORED
-  PROCESSED
+model Token {
+  id                String          @id @default(uuid())
+  contractName      String
+  contractAddress   String
+  tokenType         TokenType       @default(UNKOWN)
+  nftVersion        String?
+  nftDescription    String          @db.Text
+  balance           Int
+  whitelistMember   WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
+  whitelistMemberId String
+  items             Json            @db.JsonB
 }
 
 enum TokenType {
@@ -120,13 +64,4 @@ enum ChainType {
   POLYGON
   SOLANA
   UNKNOWN
-}
-
-enum TransactionType {
-  BUY
-  SALE
-  MINT
-  BURN
-  TRANSFER
-  CANCEL_LIST
 }

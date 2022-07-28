@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
-import { BlockchainService } from './blockchain.service';
+import { BlockchainService } from '../blockchain/blockchain.service';
 import { HttpModule } from '@nestjs/axios';
+import { RedisModule } from '@nestjs-modules/ioredis';
 
 @Module({
   imports: [HttpModule.register({
-    timeout: 50000,
-    maxRedirects: 5,
+    timeout: 60000,
   })],
   exports: [BlockchainService],
   providers: [BlockchainService],

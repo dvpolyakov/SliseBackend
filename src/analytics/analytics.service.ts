@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Token, Waitlist } from '@prisma/client';
+import { Token } from '@prisma/client';
 import { HttpService } from '@nestjs/axios';
 import {
   HolderInfo,
@@ -29,7 +29,9 @@ import { BlockchainService } from '../blockchain/blockchain.service';
 import Enumerable from 'linq';
 import papaparse from 'papaparse';
 import { TokenBalance } from './models/token-info';
-import { IntegraionService } from 'src/integration/integration.service';
+import { IntegraionService } from '../integration/integration.service';
+import { mapTokenType } from '../utils/token-mapper';
+import { AuthWhitelistMember } from './requests/whitelist-request';
 
 @Injectable()
 export class AnalyticsService {
@@ -72,161 +74,202 @@ export class AnalyticsService {
   }
 
   public async test(): Promise<any> {
-    const address = '0x566ac1Ca3EBB8c157F2C0b3f9Fd1f7cE5fBEC45e'
+    const address = '0x720a4fab08cb746fc90e88d1924a98104c0822cf';
     const a = await this.blockchainService.getNFTs(address.toLowerCase());
     return a;
   }
 
-  public async getWhitelists(): Promise<Waitlist[]> {
-    const whitelists = await this.prisma.waitlist.findMany({
-      where: {
-        mainWaitlist: true
-      }
+  public async authWhitelistMember(request: AuthWhitelistMember): Promise<string> {
+    //TODO: whitelist id validation
+    //TODO: address validation
+
+    const holderAddress = request.address.toLowerCase();
+    const tokenBalance = await this.blockchainService.getNFTs(holderAddress);
+    const accountBalance = await this.blockchainService.getAccountBalance(holderAddress);
+    const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
+
+    await this.prisma.$transaction(async () => {
+      const whitelistMember = await this.prisma.whitelistMember.create({
+        data: {
+          address: request.address,
+          ethBalance: accountBalance.ethBalance,
+          usdBalance: accountBalance.usdBalance,
+          totalTokens: totalNFTs,
+          whitelistId: request.whitelistId
+        }
+      });
+      const fetchedTokens = tokenBalance.map((token) => {
+        return {
+          contractAddress: token.contractAddress,
+          balance: token.balance,
+          contractName: token.contractName,
+          nftDescription: token.nftDescription,
+          nftVersion: token.nftVersion,
+          tokenType: mapTokenType(token.tokenType.toUpperCase()),
+          whitelistMemberId: request.whitelistId,
+          items: JSON.stringify(token.nfts)
+        }
+      });
+      const tokens = await this.prisma.token.createMany({
+        data: fetchedTokens
+      });
+      this.logger.debug(`${request.address} stored`);
     });
-    return whitelists;
+
+
+    return request.address;
   }
 
-  public async getWhitelistStatistics(id: string): Promise<WhitelistStatisticsResponse> {
-    const existTopHolders = await this.redis.get(`whitelistStatistics ${id}`);
-    if (existTopHolders) {
-      return JSON.parse(existTopHolders);
-    } else {
-      const whitelist = await this.prisma.waitlist.findFirst({
-        where: {
-          id: id
-        }
-      });
-      let whitelistSize: any;
-      if (whitelist.size === null) {
-        whitelistSize = await this.getWaitlistSize(id);
-        await this.prisma.waitlist.update({
-          where: {
-            id: id
-          },
-          data: {
-            size: whitelistSize
-          }
-        })
-      } else {
-        whitelistSize = whitelist.size;
-      }
-      const [twitterFollowersCount, discordInfo]
-        = await Promise.all([
-        this.integrationService.getTwitterFollowersCount(whitelist.twitter),
-        this.integrationService.getDiscordInfo(whitelist.discord)]);
+  // public async getWhitelists(): Promise<Waitlist[]> {
+  //   const whitelists = await this.prisma.waitlist.findMany({
+  //     where: {
+  //       mainWaitlist: true
+  //     }
+  //   });
+  //   return whitelists;
+  // }
 
-      this.logger.debug('fetching topHolders and mutualHolders');
-      const [topHolders, mutualHoldings] = await Promise.all([
-        this.prisma.$queryRaw<TopHoldersResponse[]>`select "TokenHolder".address, "TokenHolder"."totalBalanceUsd" as portfolio, count(DISTINCT TT.address) as nfts from "TokenHolder"
-        inner join "TokenTransfer" TT on "TokenHolder".id = TT."holderId"
-        where "TokenHolder"."waitlistId" = ${id} and "contractType" = 'ERC721'
-        group by "TokenHolder".address, portfolio
-        order by "TokenHolder"."totalBalanceUsd" desc
-        limit 10;`,
-        this.prisma.$queryRaw<MutualHoldingsResponse[]>`select DISTINCT "TokenTransfer".address, "TokenTransfer".name, count("TokenTransfer".name) as totalHoldings from "TokenTransfer"
-        where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress?.toLowerCase() ?? ''} and lower("TokenTransfer".address) <> '0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85'
-        and "contractType" = 'ERC721'
-        group by "TokenTransfer".name, "TokenTransfer".address
-        order by totalHoldings desc
-        limit 10;`
-      ]);
+  // public async getWhitelistStatistics(id: string): Promise<WhitelistStatisticsResponse> {
+  //   const existTopHolders = await this.redis.get(`whitelistStatistics ${id}`);
+  //   if (existTopHolders) {
+  //     return JSON.parse(existTopHolders);
+  //   } else {
+  //     const whitelist = await this.prisma.waitlist.findFirst({
+  //       where: {
+  //         id: id
+  //       }
+  //     });
+  //     let whitelistSize: any;
+  //     if (whitelist.size === null) {
+  //       whitelistSize = await this.getWaitlistSize(id);
+  //       await this.prisma.waitlist.update({
+  //         where: {
+  //           id: id
+  //         },
+  //         data: {
+  //           size: whitelistSize
+  //         }
+  //       })
+  //     } else {
+  //       whitelistSize = whitelist.size;
+  //     }
+  //     const [twitterFollowersCount, discordInfo]
+  //       = await Promise.all([
+  //         this.integrationService.getTwitterFollowersCount(whitelist.twitter),
+  //         this.integrationService.getDiscordInfo(whitelist.discord)]);
 
-      const whales = whitelist.whales ?? +((whitelist.size / 5).toFixed(0));
-      const bluechipHolders = whitelist.bluechipHolders ?? +((whitelist.size / 7).toFixed(0));
-      const bots = whitelist.bots ?? +((whitelist.size / 2).toFixed(0));
-      let failed: string[] = [];
+  //     this.logger.debug('fetching topHolders and mutualHolders');
+  //     const [topHolders, mutualHoldings] = await Promise.all([
+  //       this.prisma.$queryRaw<TopHoldersResponse[]>`select "TokenHolder".address, "TokenHolder"."totalBalanceUsd" as portfolio, count(DISTINCT TT.address) as nfts from "TokenHolder"
+  //       inner join "TokenTransfer" TT on "TokenHolder".id = TT."holderId"
+  //       where "TokenHolder"."waitlistId" = ${id} and "contractType" = 'ERC721'
+  //       group by "TokenHolder".address, portfolio
+  //       order by "TokenHolder"."totalBalanceUsd" desc
+  //       limit 10;`,
+  //       this.prisma.$queryRaw<MutualHoldingsResponse[]>`select DISTINCT "TokenTransfer".address, "TokenTransfer".name, count("TokenTransfer".name) as totalHoldings from "TokenTransfer"
+  //       where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress?.toLowerCase() ?? ''} and lower("TokenTransfer".address) <> '0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85'
+  //       and "contractType" = 'ERC721'
+  //       group by "TokenTransfer".name, "TokenTransfer".address
+  //       order by totalHoldings desc
+  //       limit 10;`
+  //     ]);
 
-      await Promise.all(mutualHoldings.map(async (holding) => {
-          try {
-            const response = await this.getCollectionInfo(holding.address);
-            if (response) {
-              holding.holdings = response;
-            }
-          } catch (e) {
-            failed.push(holding.address);
-          }
-        }
-      ));
+  //     const whales = whitelist.whales ?? +((whitelist.size / 5).toFixed(0));
+  //     const bluechipHolders = whitelist.bluechipHolders ?? +((whitelist.size / 7).toFixed(0));
+  //     const bots = whitelist.bots ?? +((whitelist.size / 2).toFixed(0));
+  //     let failed: string[] = [];
 
-      mutualHoldings.sort((a, b) => {
-        return b.totalholdings - a.totalholdings;
-      });
+  //     await Promise.all(mutualHoldings.map(async (holding) => {
+  //       try {
+  //         const response = await this.getCollectionInfo(holding.address);
+  //         if (response) {
+  //           holding.holdings = response;
+  //         }
+  //       } catch (e) {
+  //         failed.push(holding.address);
+  //       }
+  //     }
+  //     ));
 
-      this.logger.debug('NFT port requests');
-      let initPercent = 100;
-      let initValue: number;
-      mutualHoldings.map((holding, idx) => {
-        if (idx === 0) {
-          initValue = holding.totalholdings;
-          holding.percent = initPercent;
-        } else {
-          holding.percent = ((holding.totalholdings / initValue) * initPercent);
-        }
-      });
+  //     mutualHoldings.sort((a, b) => {
+  //       return b.totalholdings - a.totalholdings;
+  //     });
 
-      if (mutualHoldings.length > 8) {
-        await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings));
-      }
+  //     this.logger.debug('NFT port requests');
+  //     let initPercent = 100;
+  //     let initValue: number;
+  //     mutualHoldings.map((holding, idx) => {
+  //       if (idx === 0) {
+  //         initValue = holding.totalholdings;
+  //         holding.percent = initPercent;
+  //       } else {
+  //         holding.percent = ((holding.totalholdings / initValue) * initPercent);
+  //       }
+  //     });
 
-      this.logger.debug('topHolders processing');
-      topHolders.map((holder) => {
-        if (holder.portfolio >= 2000000) {
-          holder.label = 'whale';
-          holder.whale = true;
-        } else {
-          holder.label = 'mixed';
-          holder.whale = false;
-        }
-        holder.avgNFTPrice = holder.portfolio / holder.nfts;
-        holder.nftsTotalPrice = holder.avgNFTPrice * (holder.nfts / 1.5)
-        if (holder.nfts > 10 && holder.nfts < 25) {
-          holder.holdingTimeLabel = 'mixed'
-        } else if (holder.nfts < 10) {
-          holder.holdingTimeLabel = 'holder'
-        } else {
-          holder.holdingTimeLabel = 'flipper'
-        }
-        holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
-        holder.alsoHold = {
-          collectionInfo: this.getMultipleRandom(mutualHoldings, 3),
-          total: 16
-        }
-      });
+  //     if (mutualHoldings.length > 8) {
+  //       await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings));
+  //     }
 
-      const topHoldersDashboard: TopHoldersDashboardResponse = {
-        topHolders: topHolders,
-        bots: whitelist.bots,
-        bluechipHolders: whitelist.bluechipHolders,
-        whales: whitelist.whales,
-        size: whitelistSize
-      }
+  //     this.logger.debug('topHolders processing');
+  //     topHolders.map((holder) => {
+  //       if (holder.portfolio >= 2000000) {
+  //         holder.label = 'whale';
+  //         holder.whale = true;
+  //       } else {
+  //         holder.label = 'mixed';
+  //         holder.whale = false;
+  //       }
+  //       holder.avgNFTPrice = holder.portfolio / holder.nfts;
+  //       holder.nftsTotalPrice = holder.avgNFTPrice * (holder.nfts / 1.5)
+  //       if (holder.nfts > 10 && holder.nfts < 25) {
+  //         holder.holdingTimeLabel = 'mixed'
+  //       } else if (holder.nfts < 10) {
+  //         holder.holdingTimeLabel = 'holder'
+  //       } else {
+  //         holder.holdingTimeLabel = 'flipper'
+  //       }
+  //       holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
+  //       holder.alsoHold = {
+  //         collectionInfo: this.getMultipleRandom(mutualHoldings, 3),
+  //         total: 16
+  //       }
+  //     });
 
-      if (topHolders.length > 8) {
-        await this.redis.set(`${id} topHolders`, JSON.stringify(topHoldersDashboard));
-      }
+  //     const topHoldersDashboard: TopHoldersDashboardResponse = {
+  //       topHolders: topHolders,
+  //       bots: whitelist.bots,
+  //       bluechipHolders: whitelist.bluechipHolders,
+  //       whales: whitelist.whales,
+  //       size: whitelistSize
+  //     }
 
-      this.logger.debug('complete');
+  //     if (topHolders.length > 8) {
+  //       await this.redis.set(`${id} topHolders`, JSON.stringify(topHoldersDashboard));
+  //     }
 
-      if (failed.length > 0) {
-        this.logger.debug(`${failed} failed parsing mutual holdings`);
-      }
-      const response: WhitelistStatisticsResponse = {
-        bluechipHolders: bluechipHolders,
-        bots: bots,
-        discordInfo: discordInfo,
-        twitterFollowersCount: twitterFollowersCount,
-        whales: whales,
-        whitelistSize: whitelistSize,
-        topHolders: topHolders,
-        mutualHoldings: mutualHoldings
-      }
+  //     this.logger.debug('complete');
 
-      if (response.mutualHoldings.length > 8 && response.topHolders.length > 8) {
-        await this.redis.set(`whitelistStatistics ${id}`, JSON.stringify(response));
-      }
-      return response;
-    }
-  }
+  //     if (failed.length > 0) {
+  //       this.logger.debug(`${failed} failed parsing mutual holdings`);
+  //     }
+  //     const response: WhitelistStatisticsResponse = {
+  //       bluechipHolders: bluechipHolders,
+  //       bots: bots,
+  //       discordInfo: discordInfo,
+  //       twitterFollowersCount: twitterFollowersCount,
+  //       whales: whales,
+  //       whitelistSize: whitelistSize,
+  //       topHolders: topHolders,
+  //       mutualHoldings: mutualHoldings
+  //     }
+
+  //     if (response.mutualHoldings.length > 8 && response.topHolders.length > 8) {
+  //       await this.redis.set(`whitelistStatistics ${id}`, JSON.stringify(response));
+  //     }
+  //     return response;
+  //   }
+  // }
 
   private getMultipleRandom(arr, num) {
     const shuffled = [...arr].sort(() => 0.5 - Math.random());
@@ -251,153 +294,153 @@ export class AnalyticsService {
   }
 
   public async getTopHolders(id: string): Promise<TopHoldersDashboardResponse> {
-    const existTopHolders = await this.redis.get(`${id} topHolders`)
-    if (existTopHolders) {
-      return JSON.parse(existTopHolders);
-    } else {
-      const topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`select "TokenHolder".address, "TokenHolder"."totalBalanceUsd" as portfolio, count(DISTINCT TT.address) as nfts from "TokenHolder"
-        inner join "TokenTransfer" TT on "TokenHolder".id = TT."holderId"
-        where "TokenHolder"."waitlistId" = ${id} and "contractType" = 'ERC721'
-        group by "TokenHolder".address, portfolio
-        order by "TokenHolder"."totalBalanceUsd" desc
-        limit 10;`;
+    // const existTopHolders = await this.redis.get(`${id} topHolders`)
+    // if (existTopHolders) {
+    return JSON.parse(await this.redis.get(`${id} topHolders`));
+    //   } else {
+    //     const topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`select "TokenHolder".address, "TokenHolder"."totalBalanceUsd" as portfolio, count(DISTINCT TT.address) as nfts from "TokenHolder"
+    //       inner join "TokenTransfer" TT on "TokenHolder".id = TT."holderId"
+    //       where "TokenHolder"."waitlistId" = ${id} and "contractType" = 'ERC721'
+    //       group by "TokenHolder".address, portfolio
+    //       order by "TokenHolder"."totalBalanceUsd" desc
+    //       limit 10;`;
 
-      const whitelist = await this.prisma.waitlist.findFirst({
-        where: {
-          id: id
-        }
-      });
-      const existMutualHolders = await this.redis.get(`${id} mutualHolders`);
-      let hm: MutualHoldingsResponse[];
-      if (existMutualHolders) {
-        hm = JSON.parse(existMutualHolders);
-      }
+    //     const whitelist = await this.prisma.waitlist.findFirst({
+    //       where: {
+    //         id: id
+    //       }
+    //     });
+    //     const existMutualHolders = await this.redis.get(`${id} mutualHolders`);
+    //     let hm: MutualHoldingsResponse[];
+    //     if (existMutualHolders) {
+    //       hm = JSON.parse(existMutualHolders);
+    //     }
 
-      topHolders.map((holder) => {
-        if (holder.portfolio >= 2000000) {
-          holder.label = 'whale';
-          holder.whale = true;
-        } else {
-          holder.label = 'mixed';
-          holder.whale = false;
-        }
-        holder.avgNFTPrice = holder.portfolio / holder.nfts;
-        holder.nftsTotalPrice = holder.avgNFTPrice * (holder.nfts / 1.5)
-        if (holder.nfts > 20 && holder.nfts < 30) {
-          holder.holdingTimeLabel = 'mixed'
-        } else if (holder.nfts > 30) {
-          holder.holdingTimeLabel = 'holder'
-        } else {
-          holder.holdingTimeLabel = 'flipper'
-        }
-        holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
-        if (hm) {
-          holder.alsoHold = {
-            collectionInfo: this.getMultipleRandom(hm, 3),
-            total: 16
-          }
-        }
-      });
+    //     topHolders.map((holder) => {
+    //       if (holder.portfolio >= 2000000) {
+    //         holder.label = 'whale';
+    //         holder.whale = true;
+    //       } else {
+    //         holder.label = 'mixed';
+    //         holder.whale = false;
+    //       }
+    //       holder.avgNFTPrice = holder.portfolio / holder.nfts;
+    //       holder.nftsTotalPrice = holder.avgNFTPrice * (holder.nfts / 1.5)
+    //       if (holder.nfts > 20 && holder.nfts < 30) {
+    //         holder.holdingTimeLabel = 'mixed'
+    //       } else if (holder.nfts > 30) {
+    //         holder.holdingTimeLabel = 'holder'
+    //       } else {
+    //         holder.holdingTimeLabel = 'flipper'
+    //       }
+    //       holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
+    //       if (hm) {
+    //         holder.alsoHold = {
+    //           collectionInfo: this.getMultipleRandom(hm, 3),
+    //           total: 16
+    //         }
+    //       }
+    //     });
 
-      const response: TopHoldersDashboardResponse = {
-        topHolders: topHolders,
-        bots: whitelist.bots,
-        bluechipHolders: whitelist.bluechipHolders,
-        whales: whitelist.whales,
-        size: whitelist.size
-      }
+    //     const response: TopHoldersDashboardResponse = {
+    //       topHolders: topHolders,
+    //       bots: whitelist.bots,
+    //       bluechipHolders: whitelist.bluechipHolders,
+    //       whales: whitelist.whales,
+    //       size: whitelist.size
+    //     }
 
-      await this.redis.set(`${id} topHolders`, JSON.stringify(response));
+    //     await this.redis.set(`${id} topHolders`, JSON.stringify(response));
 
-      return response;
-    }
-  }
+    //     return response;
+    //   }
+    // }
 
-  public async startTargeting(id: string): Promise<number>{
-    const response = await this.httpService.get(`https://slise-ml.herokuapp.com/recs/?whitelist_id=${id}`).toPromise();
-    if(response.status === 200){
-      this.logger.debug('targeting started');
-      return 1;
-    }
-    return 0;
-  }
+    // public async startTargeting(id: string): Promise<number> {
+    //   const response = await this.httpService.get(`https://slise-ml.herokuapp.com/recs/?whitelist_id=${id}`).toPromise();
+    //   if (response.status === 200) {
+    //     this.logger.debug('targeting started');
+    //     return 1;
+    //   }
+    //   return 0;
+    // }
 
-  public async getMutualHoldings(id: string): Promise<MutualHoldingsResponse[]> {
-    const existMutualHolders = await this.redis.get(`${id} mutualHolders`);
-    if (existMutualHolders) {
-      const hm: MutualHoldingsResponse[] = JSON.parse(existMutualHolders);
-      await Promise.all(hm.map(async (mutual) => {
-        try {
-          if (mutual.holdings.stats === null) {
-            const collectionStats = await this.getCollectionStats(mutual.address);
-            mutual.holdings.stats = collectionStats;
-          }
-          if (mutual.totalHolders) {
-            const totalHolders = await this.fetchHolders(1, mutual.address, 10000);
-            if (totalHolders) {
-              mutual.totalHolders = totalHolders.items.length;
-            }
-          }
-        } catch {
+    // public async getMutualHoldings(id: string): Promise<MutualHoldingsResponse[]> {
+    //   const existMutualHolders = await this.redis.get(`${id} mutualHolders`);
+    //   if (existMutualHolders) {
+    //     const hm: MutualHoldingsResponse[] = JSON.parse(existMutualHolders);
+    //     await Promise.all(hm.map(async (mutual) => {
+    //       try {
+    //         if (mutual.holdings.stats === null) {
+    //           const collectionStats = await this.getCollectionStats(mutual.address);
+    //           mutual.holdings.stats = collectionStats;
+    //         }
+    //         if (mutual.totalHolders) {
+    //           const totalHolders = await this.fetchHolders(1, mutual.address, 10000);
+    //           if (totalHolders) {
+    //             mutual.totalHolders = totalHolders.items.length;
+    //           }
+    //         }
+    //       } catch {
 
-        }
-      }));
-      await this.redis.set(`${id} mutualHolders`, JSON.stringify(hm));
+    //       }
+    //     }));
+    //     await this.redis.set(`${id} mutualHolders`, JSON.stringify(hm));
 
-      return hm;
-    } else {
-      const whitelist = await this.prisma.waitlist.findFirst({
-        where: {
-          id: id
-        }
-      });
-      const mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`select DISTINCT "TokenTransfer".address, "TokenTransfer".name, count("TokenTransfer".name) as totalHoldings from "TokenTransfer"
-        where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress?.toLowerCase() ?? ''} and lower("TokenTransfer".address) <> '0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85'
-        and "contractType" = 'ERC721'
-        group by "TokenTransfer".name, "TokenTransfer".address
-        order by totalHoldings desc
-        limit 10;`;
+    //     return hm;
+    //   } else {
+    //     const whitelist = await this.prisma.waitlist.findFirst({
+    //       where: {
+    //         id: id
+    //       }
+    //     });
+    //     const mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`select DISTINCT "TokenTransfer".address, "TokenTransfer".name, count("TokenTransfer".name) as totalHoldings from "TokenTransfer"
+    //       where "TokenTransfer"."waitlistId" = ${id}  and "TokenTransfer".address <> ${whitelist.contractAddress?.toLowerCase() ?? ''} and lower("TokenTransfer".address) <> '0x57f1887a8bf19b14fc0df6fd9b2acc9af147ea85'
+    //       and "contractType" = 'ERC721'
+    //       group by "TokenTransfer".name, "TokenTransfer".address
+    //       order by totalHoldings desc
+    //       limit 10;`;
 
-      let failed: string[] = [];
+    //     let failed: string[] = [];
 
-      await Promise.all(mutualHoldings.map(async (holding) => {
-          try {
-            const response = await this.getCollectionInfo(holding.address);
-            if (response) {
-              holding.holdings = response;
-            }
-            const totalHolders = await this.fetchHolders(1, holding.address, 10000);
-            if (totalHolders) {
-              holding.totalHolders = totalHolders.items.length;
-            }
-            const collectionStats = await this.getCollectionStats(holding.address);
-            holding.holdings.stats = collectionStats;
-          } catch (e) {
-            failed.push(holding.address);
-          }
-        }
-      ));
+    //     await Promise.all(mutualHoldings.map(async (holding) => {
+    //       try {
+    //         const response = await this.getCollectionInfo(holding.address);
+    //         if (response) {
+    //           holding.holdings = response;
+    //         }
+    //         const totalHolders = await this.fetchHolders(1, holding.address, 10000);
+    //         if (totalHolders) {
+    //           holding.totalHolders = totalHolders.items.length;
+    //         }
+    //         const collectionStats = await this.getCollectionStats(holding.address);
+    //         holding.holdings.stats = collectionStats;
+    //       } catch (e) {
+    //         failed.push(holding.address);
+    //       }
+    //     }
+    //     ));
 
-      mutualHoldings.sort((a, b) => {
-        return b.totalholdings - a.totalholdings;
-      });
+    //     mutualHoldings.sort((a, b) => {
+    //       return b.totalholdings - a.totalholdings;
+    //     });
 
-      this.logger.debug('NFT port requests');
-      let initPercent = 100;
-      let initValue: number;
-      mutualHoldings.map((holding, idx) => {
-        if (idx === 0) {
-          initValue = holding.totalholdings;
-          holding.percent = initPercent;
-        } else {
-          holding.percent = ((holding.totalholdings / initValue) * initPercent);
-        }
-      });
+    //     this.logger.debug('NFT port requests');
+    //     let initPercent = 100;
+    //     let initValue: number;
+    //     mutualHoldings.map((holding, idx) => {
+    //       if (idx === 0) {
+    //         initValue = holding.totalholdings;
+    //         holding.percent = initPercent;
+    //       } else {
+    //         holding.percent = ((holding.totalholdings / initValue) * initPercent);
+    //       }
+    //     });
 
-      await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings));
+    //     await this.redis.set(`${id} mutualHolders`, JSON.stringify(mutualHoldings));
 
-      return mutualHoldings;
-    }
+    //     return mutualHoldings;
+    //   }
 
   }
 
@@ -437,29 +480,29 @@ export class AnalyticsService {
     return await this.fetchEventsByContractsAndAddresses(contractAddresses, addresses);
   }
 
-  public async parseHolders(request: WhitelistInfoRequest): Promise<string> {
-    this.logger.debug(`collection: ${request.collectionName} received for processing`);
-    const hldrs = await this.fetchHolders(1, '', 10000);
-    const addresses = hldrs.items.map((item) => {
-      return item.address;
-    });
-    const waitlist = await this.prisma.waitlist.create({
-      data: {
-        name: request.collectionName,
-      }
-    });
-    const holdersRequest = {
-      addresses: addresses,
-      waitlistId: waitlist.id
-    };
-    const job = await this.holdersQueue.add('parseAndStore', {
-      holdersRequest
-    });
-    this.logger.debug(`collection: ${request.collectionName} will be processed with jobId: ${job.id}`);
-    return waitlist.id;
-  }
+  // public async parseHolders(request: WhitelistInfoRequest): Promise<string> {
+  //   this.logger.debug(`collection: ${request.collectionName} received for processing`);
+  //   const hldrs = await this.fetchHolders(1, '', 10000);
+  //   const addresses = hldrs.items.map((item) => {
+  //     return item.address;
+  //   });
+  //   const waitlist = await this.prisma.waitlist.create({
+  //     data: {
+  //       name: request.collectionName,
+  //     }
+  //   });
+  //   const holdersRequest = {
+  //     addresses: addresses,
+  //     waitlistId: waitlist.id
+  //   };
+  //   const job = await this.holdersQueue.add('parseAndStore', {
+  //     holdersRequest
+  //   });
+  //   this.logger.debug(`collection: ${request.collectionName} will be processed with jobId: ${job.id}`);
+  //   return waitlist.id;
+  // }
 
-  public async storeWaitlist(waitlistRequest: WhitelistInfoRequest, file: Express.Multer.File): Promise<WhitelistInfoResponse> {
+  public async storeWhitelist(waitlistRequest: WhitelistInfoRequest, file: Express.Multer.File): Promise<WhitelistInfoResponse> {
     this.logger.debug(`collection: ${waitlistRequest.collectionName} received for processing`);
     let s3File;
     try {
@@ -468,7 +511,7 @@ export class AnalyticsService {
     } catch (e) {
       this.logger.debug(`error uploading file ${e.toString()}`)
     }
-    if(!s3File.Body){
+    if (!s3File.Body) {
       throw new BadRequestException(`No data in file`);
     }
     /*const waitlist = await this.prisma.waitlist.create({
@@ -478,11 +521,11 @@ export class AnalyticsService {
       }
     });*/
 
-   /* const holdersRequest = {
-      id: waitlist.id,
-      file: s3File,
-      waitlistId: waitlist.id
-    };*/
+    /* const holdersRequest = {
+       id: waitlist.id,
+       file: s3File,
+       waitlistId: waitlist.id
+     };*/
     const data = Buffer.from(s3File.Body).toString('utf8');
     const parsedCsv = await papaparse.parse(data, {
       header: false,
@@ -496,9 +539,9 @@ export class AnalyticsService {
     }));
 
     await this.processWhitelist(addresses);
-   /* const job = await this.holdersQueue.add('parseAndStore', {
-      holdersRequest
-    });*/
+    /* const job = await this.holdersQueue.add('parseAndStore', {
+       holdersRequest
+     });*/
     //this.logger.debug(`collection: ${holdersRequest.waitlistId} will be processed with jobId: ${job.id}`);
     return {
       name: waitlistRequest.collectionName,
@@ -506,9 +549,24 @@ export class AnalyticsService {
     };
   }
 
+  public async storeClearWhitelist(whitelistRequest: WhitelistInfoRequest): Promise<WhitelistInfoResponse> {
+    this.logger.debug(`collection: ${whitelistRequest.collectionName} received for processing`);
+    const whitelist = await this.prisma.whitelist.create({
+      data: {
+        name: whitelistRequest.collectionName,
+        size: 0,
+      }
+    })
+    return {
+      name: whitelist.name,
+      id: whitelist.id
+    };
+  }
+
   private async processWhitelist(addresses: string[]): Promise<any> {
     const whitelistHolders = await Promise.all(addresses.map(async (address) => {
       const holderAddress = address.toLowerCase();
+
       const tokenBalance = await this.blockchainService.getNFTs(holderAddress);
       const accountBalance = await this.blockchainService.getAccountBalance(holderAddress);
       const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
@@ -518,9 +576,10 @@ export class AnalyticsService {
         accountBalance: accountBalance,
         totalNFTs: totalNFTs
       }
+
     }));
 
-    const topHolders = whitelistHolders.sort((a,b) => (a.accountBalance.usdBalance > b.accountBalance.usdBalance) ? 1 : -1);
+    const topHolders = whitelistHolders.sort((a, b) => (a.accountBalance.usdBalance > b.accountBalance.usdBalance) ? 1 : -1);
     let allHoldings: TokenBalance[] = [];
     whitelistHolders.map(holder => {
       allHoldings.push(...holder.tokenBalance);
@@ -528,13 +587,13 @@ export class AnalyticsService {
     const countUniqueHoldings = (arr: TokenBalance[]) => {
       const counts = {};
       for (var i = 0; i < arr.length; i++) {
-         counts[arr[i].contractAddress] = 1 + (counts[arr[i].contractAddress] || 0);
+        counts[arr[i].contractAddress] = 1 + (counts[arr[i].contractAddress] || 0);
       };
       return counts;
-   };
+    };
 
-   const uniqueHoldings = countUniqueHoldings(allHoldings);
-   const a = uniqueHoldings;
+    const uniqueHoldings = countUniqueHoldings(allHoldings);
+    const a = uniqueHoldings;
   }
 
   public async tokenEventsByContract(network: number, token: string, pageSize: number): Promise<BlockChainUserEvent[]> {
@@ -719,10 +778,10 @@ export class AnalyticsService {
   public async getAddressStats(address: string): Promise<any> {
     const kazm = 'https://us-central1-kazm-flashlight-dev.cloudfunctions.net/getAddressStats';
     const response = await this.httpService.post(kazm, {
-        'data': {
-          'address': `${address}`
-        }
-      },
+      'data': {
+        'address': `${address}`
+      }
+    },
       {
         headers: {
           'Content-Type': 'application/json'
@@ -1067,22 +1126,5 @@ export class AnalyticsService {
     });
 
     return userEvents;
-  }
-
-  private async getNFTs(address: string): Promise<number> {
-    const options = {
-      address: address,
-    };
-    const NFTs = await this.Moralis.Web3API.account.getNFTs(options);
-    return NFTs.total;
-  }
-
-  private async getWaitlistSize(id: string): Promise<number> {
-    const count = await this.prisma.tokenHolder.count({
-      where: {
-        waitlistId: id
-      }
-    });
-    return count;
   }
 }

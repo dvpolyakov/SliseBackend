@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "TargetingHolders" ALTER COLUMN "vector" SET DATA TYPE DOUBLE PRECISION;
