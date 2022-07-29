@@ -62,11 +62,11 @@ export class AnalyticsService {
       )
     );
 
-    this.Moralis.start({
-      serverUrl: process.env.MORALIS_SERVER_URL,
-      appId: process.env.MORALIS_APP_ID,
-      masterKey: process.env.MORALIS_MASTER_KEY
-    });
+    // this.Moralis.start({
+    //   serverUrl: process.env.MORALIS_SERVER_URL,
+    //   appId: process.env.MORALIS_APP_ID,
+    //   masterKey: process.env.MORALIS_MASTER_KEY
+    // });
 
     this.ethDater = new this.ethDater(
       this.web3
