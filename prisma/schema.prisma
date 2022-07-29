@@ -26,15 +26,17 @@ model Whitelist {
 }
 
 model WhitelistMember {
-  id          String    @id @default(uuid())
-  address     String
-  usdBalance  Float
-  ethBalance  Float
-  lastUpdate  DateTime  @default(now())
-  whitelist   Whitelist @relation(fields: [whitelistId], references: [id])
-  whitelistId String
-  tokens      Token[]
-  totalTokens Int
+  id                    String    @id @default(uuid())
+  address               String
+  usdBalance            Float
+  ethBalance            Float
+  lastUpdate            DateTime  @default(now())
+  whitelist             Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId           String
+  tokens                Token[]
+  totalTokens           Int
+  tokenProcessed        Boolean   @default(true)
+  tokenProcessedAttemps Int
 }
 
 model Token {

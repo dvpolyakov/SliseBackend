@@ -74,8 +74,7 @@ export class AnalyticsService {
   }
 
   public async test(): Promise<any> {
-    const address = '0x720a4fab08cb746fc90e88d1924a98104c0822cf';
-    const a = await this.blockchainService.getNFTs(address.toLowerCase());
+    const a = await this.blockchainService.test();
     return a;
   }
 
@@ -95,7 +94,8 @@ export class AnalyticsService {
           ethBalance: accountBalance.ethBalance,
           usdBalance: accountBalance.usdBalance,
           totalTokens: totalNFTs,
-          whitelistId: request.whitelistId
+          whitelistId: request.whitelistId,
+          tokenProcessedAttemps: 0
         }
       });
       const fetchedTokens = tokenBalance.map((token) => {
@@ -113,6 +113,18 @@ export class AnalyticsService {
       const tokens = await this.prisma.token.createMany({
         data: fetchedTokens
       });
+
+      if (!(fetchedTokens.length > 0)) {
+        await this.prisma.whitelistMember.update({
+          where: {
+            id: whitelistMember.id
+          },
+          data: {
+            tokenProcessed: false,
+            tokenProcessedAttemps : whitelistMember.tokenProcessedAttemps + 1
+          }
+        })
+      }
       this.logger.debug(`${request.address} stored`);
     });
 
