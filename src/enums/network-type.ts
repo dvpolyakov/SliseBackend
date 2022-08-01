@@ -1,5 +1,6 @@
 export enum NetworkType {
-  ETH = 0,
-  SOL = 1,
-  BTC = 2,
+  Unknown = "Unknown",
+  Ethereum = "Ethereum",
+  Polygon = "Polygon",
+  Solana = "Solana",
 }

@@ -5,6 +5,9 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import papaparse from 'papaparse';
+import { mapTokenType } from '../utils/token-mapper';
+import { BlockchainService } from '../blockchain/blockchain.service';
+import { ChainType } from '@prisma/client';
 
 @Processor({ name: 'waitlist', scope: Scope.DEFAULT })
 export class TokenProcessorService {
@@ -12,70 +15,124 @@ export class TokenProcessorService {
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly analyticsService: AnalyticsService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly blockchainService: BlockchainService
   ) {
   }
 
   private readonly logger = new Logger(TokenProcessorService.name);
-  //TODO: Move to one loop: fetching -> parsing -> storing
-  //TODO: fix try/catch
-  @Process({ name: 'parseAndStore', concurrency: 1 })
-  async parseAndStore(job: Job) {
-  //   this.logger.debug(`received job with id: ${job.id}`);
 
-  //   this.logger.debug(`parsing job with id: ${job.id}`);
-  //   const holders = job.data.holdersRequest;
+  @Process({name: 'processWhitelistMemberEth', concurrency: 1})
+  async processWhitelistMemberEth(job: Job) {
+    this.logger.debug(`received job with id: ${job.id}`);
+    const request = job.data.request;
+    this.logger.debug(`processing whitelist member address ${request.address}`)
+    const tokenBalance = await this.blockchainService.getNFTsEthereum(request.address);
+    const accountBalance = await this.blockchainService.getAccountBalanceEth(request.address);
+    const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
 
-  //   try {
-  //     const file = holders.file;
-  //     const data = Buffer.from(file.Body).toString('utf8');
-  //     const parsedCsv = await papaparse.parse(data, {
-  //       header: false,
-  //       skipEmptyLines: true,
-  //       complete: (results) => results.data
-  //     });
-  //     //TODO: change to map in map
-  //     let addresses: string[] = [];
-  //     parsedCsv.data.map((subarray) => subarray.map((address) => {
-  //       addresses.push(address);
-  //     }));
-  //     await this.prisma.waitlist.update({
-  //       where: {
-  //         id: holders.id
-  //       },
-  //       data: {
-  //         size: addresses.length
-  //       }
-  //     })
-  //     let savedHolders: any[] = [];
-  //     addresses.map((tokenHolder) => {
-  //       const dataHolder = {
-  //         address: tokenHolder.toLowerCase(),
-  //         totalBalanceTokens: 0,
-  //         totalBalanceUsd: 0,
-  //         ethBalance: 0,
-  //         firstTransactionDate: new Date(),
-  //         volume: 0,
-  //         waitlistId: holders.waitlistId
-  //       };
-  //       savedHolders.push(dataHolder);
-  //       this.logger.debug(`holder ${tokenHolder} parsed`);
-  //     });
-  //     await this.prisma.tokenHolder.createMany({
-  //       data: savedHolders
-  //     });
+    await this.prisma.$transaction(async () => {
+      const whitelistMember = await this.prisma.whitelistMember.create({
+        data: {
+          address: request.address,
+          totalTokens: totalNFTs,
+          whitelistId: request.whitelistId,
+          tokenProcessedAttemps: 0,
+        }
+      });
+      await this.prisma.accountBalance.create({
+        data: {
+          whitelistMemberId: whitelistMember.id,
+          tokenBalance: accountBalance.tokenBalance,
+          usdBalance: accountBalance.usdBalance,
+          chainType: ChainType.ETHEREUM
+        }
+      });
+      const fetchedTokens = tokenBalance.map((token) => {
+        return {
+          contractAddress: token.contractAddress,
+          balance: token.balance,
+          contractName: token.contractName,
+          nftDescription: token.nftDescription,
+          nftVersion: token.nftVersion,
+          tokenType: mapTokenType(token.tokenType.toUpperCase()),
+          whitelistMemberId: whitelistMember.id,
+          items: JSON.stringify(token.nfts)
+        }
+      });
+      const tokens = await this.prisma.token.createMany({
+        data: fetchedTokens
+      });
 
-  //     //await this.analyticsService.startTargeting(holders.id);
+      if (!(fetchedTokens.length > 0)) {
+        await this.prisma.whitelistMember.update({
+          where: {
+            id: whitelistMember.id
+          },
+          data: {
+            tokenProcessed: false,
+            tokenProcessedAttemps: whitelistMember.tokenProcessedAttemps + 1
+          }
+        })
+      }
+      this.logger.debug(`${request.address} stored`);
+    });
+  }
 
-  //     this.logger.debug(`saved ${savedHolders.length} holders`);
-  //   } catch (e) {
-  //     const error = e.toString();
-  //     this.logger.debug(
-  //       `Error processing job with id: ${job.id} error: ${JSON.stringify({ error })}`
-  //     );
-  //   } finally {
+  @Process({name: 'processWhitelistMemberSol', concurrency: 1})
+  async processWhitelistMemberSol(job: Job) {
+    this.logger.debug(`received job with id: ${job.id}`);
+    const request = job.data.request;
+    this.logger.debug(`processing whitelist member address ${request.address}`)
+    const tokenBalance = await this.blockchainService.getNFTsSolana(request.address);
+    const accountBalance = await this.blockchainService.getAccountBalanceEth(request.address);
+    const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
 
-  //   }
-  //   this.logger.debug(`job with id: ${job.id} done successful`);
+    await this.prisma.$transaction(async () => {
+      const whitelistMember = await this.prisma.whitelistMember.create({
+        data: {
+          address: request.address,
+          totalTokens: totalNFTs,
+          whitelistId: request.whitelistId,
+          tokenProcessedAttemps: 0
+        }
+      });
+      await this.prisma.accountBalance.create({
+        data: {
+          whitelistMemberId: whitelistMember.id,
+          tokenBalance: accountBalance.tokenBalance,
+          usdBalance: accountBalance.usdBalance,
+          chainType: ChainType.SOLANA
+        }
+      });
+      const fetchedTokens = tokenBalance.map((token) => {
+        return {
+          contractAddress: token.contractAddress,
+          balance: token.balance,
+          contractName: token.contractName,
+          nftDescription: token.nftDescription,
+          nftVersion: token.nftVersion,
+          tokenType: mapTokenType(token.tokenType.toUpperCase()),
+          whitelistMemberId: whitelistMember.id,
+          items: JSON.stringify(token.nfts)
+        }
+      });
+      const tokens = await this.prisma.token.createMany({
+        data: fetchedTokens
+      });
+
+      if (!(fetchedTokens.length > 0)) {
+        await this.prisma.whitelistMember.update({
+          where: {
+            id: whitelistMember.id
+          },
+          data: {
+            tokenProcessed: false,
+            tokenProcessedAttemps: whitelistMember.tokenProcessedAttemps + 1
+          }
+        })
+      }
+      this.logger.debug(`${request.address} stored`);
+    });
   }
 }

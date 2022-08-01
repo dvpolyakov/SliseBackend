@@ -1,0 +1,1 @@
+export const WHITELISTS_KEY_NAME = 'storedWhitelistsSet';

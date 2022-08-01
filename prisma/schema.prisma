@@ -23,20 +23,39 @@ model Whitelist {
   size             Int
   chainType        ChainType         @default(ETHEREUM)
   whitelistMembers WhitelistMember[]
+  createdAt        DateTime          @default(now())
+  owner            User              @relation(fields: [ownerId], references: [id])
+  ownerId          String
 }
 
 model WhitelistMember {
-  id                    String    @id @default(uuid())
+  id                    String           @id @default(uuid())
   address               String
-  usdBalance            Float
-  ethBalance            Float
-  lastUpdate            DateTime  @default(now())
-  whitelist             Whitelist @relation(fields: [whitelistId], references: [id])
+  createdAt             DateTime         @default(now())
+  whitelist             Whitelist        @relation(fields: [whitelistId], references: [id])
   whitelistId           String
   tokens                Token[]
   totalTokens           Int
-  tokenProcessed        Boolean   @default(true)
+  tokenProcessed        Boolean          @default(true)
   tokenProcessedAttemps Int
+  AccountBalance        AccountBalance[]
+}
+
+model User {
+  id         String      @id @default(uuid())
+  address    String?
+  chainType  ChainType   @default(UNKNOWN)
+  createdAt  DateTime    @default(now())
+  whitelists Whitelist[]
+}
+
+model AccountBalance {
+  id                String          @id @default(uuid())
+  whitelistMember   WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
+  whitelistMemberId String
+  tokenBalance      Float
+  usdBalance        Float
+  chainType         ChainType   @default(UNKNOWN)
 }
 
 model Token {

@@ -8,6 +8,8 @@ import { InjectRedis } from '@nestjs-modules/ioredis';
 //import { LogDecoder } from "@maticnetwork/eth-decoder"
 import { ERC1155TokenABI, ERC20TokenABI, ERC721TokenABI } from '../utils/abi';
 
+const SOL_RPC = 'https://api.mainnet-beta.solana.com';
+
 @Injectable()
 export class BlockchainService {
   private readonly logger = new Logger(BlockchainService.name);
@@ -51,13 +53,7 @@ export class BlockchainService {
   }
 
   public async test(): Promise<any> {
-    const data = await this.provider.send('qn_fetchNFTs', {
-      wallet: '0xc0c272c893dfe6a17c39f956ff65326233e83328',
-      omitFields: ['provenance', 'traits'],
-      page: 1,
-      perPage: 40,
-
-    });
+    const data = await this.getNFTsSolana('EatSzWzfeo47TKCVQn6khv3qgWA9oKg28sfHcA4wsBZ1');
     return data;
   }
 
@@ -67,7 +63,71 @@ export class BlockchainService {
     });
   }
 
-  public async getNFTs(address: string): Promise<TokenBalance[]> {
+  private async fetchNFTsSolana(address: string, page: number): Promise<any> {
+    const response = await this.httpService.post('https://dry-small-silence.solana-mainnet.discover.quiknode.pro/d5701a29449dd7789630ec39f38ec793bfba2822/', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'qn_fetchNFTs',
+      params: {
+        wallet: address,
+        omitFields: ['provenance', 'traits'],
+        page: page,
+        perPage: 20,
+      },
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    }).toPromise();
+    let data = response.data.result.assets;
+    if (response.data.result.totalPages > page) {
+      return data.concat(await Promise.all(await this.fetchNFTsSolana(address, page + 1)));
+    } else {
+      return data || [];
+    }
+  }
+
+  public async getNFTsSolana(address: string): Promise<any> {
+    const data = await Promise.all(await this.fetchNFTsSolana(address, 1));
+    const uniqueTokens = [...new Map(data.map(item =>
+      [item['collectionAddress'], item])).values()];
+
+    const nfts = uniqueTokens.map((item) => {
+      const tokens = data.filter(x => x.collectionAddress === item.collectionAddress);
+      let collectionName;
+      if (item.collectionName === 'Unknown') {
+        const idx = item.name.lastIndexOf('#')
+        if (idx !== -1) {
+          collectionName = item.name.substring(0, idx);
+        } else {
+          collectionName = item.name;
+        }
+      } else {
+        collectionName = item.collectionName
+      }
+      return {
+        contractName: collectionName,
+        contractSymbol: 'SOL',
+        contractAddress: item.collectionAddress,
+        tokenType: 'SOL',
+        nftVersion: null,
+        nftDescription: item.description,
+        balance: tokens.length,
+        nfts: tokens.map((nft) => {
+          return {
+            tokenId: 0,
+            name: nft.name,
+            amount: 0,
+            image: nft.imageUrl
+          }
+        })
+      }
+    });
+
+    return nfts;
+  }
+
+  public async getNFTsEthereum(address: string): Promise<TokenBalance[]> {
     try {
       const sdk = this.getNewSdk('mainnet');
       const data = await sdk.getNftList({
@@ -97,20 +157,39 @@ export class BlockchainService {
     }
   }
 
-  public async getAccountBalance(address: string): Promise<AccountBalanceResponse> {
+  public async getAccountBalanceEth(address: string): Promise<AccountBalanceResponse> {
     try {
       const ethBalance = await this.getEthBalance(address);
       const usd = +(await this.redis.get('ethUsdPrice'));
-      const usdB = +(usd * ethBalance);
+      const usdBalance = +(usd * ethBalance);
 
       const data = {
-        ethBalance: ethBalance,
-        usdBalance: usdB
+        tokenBalance: ethBalance,
+        usdBalance: usdBalance
       };
       return data;
     } catch {
       return {
-        ethBalance: 0,
+        tokenBalance: 0,
+        usdBalance: 0
+      }
+    }
+  }
+
+  public async getAccountBalanceSol(address: string): Promise<AccountBalanceResponse> {
+    try {
+      const solBalance = await this.getSolBalance(address);
+      const usd = +(await this.redis.get('ethSolPrice'));
+      const usdBalance = +(usd * solBalance);
+
+      const data = {
+        tokenBalance: solBalance,
+        usdBalance: usdBalance
+      };
+      return data;
+    } catch {
+      return {
+        tokenBalance: 0,
         usdBalance: 0
       }
     }
@@ -127,4 +206,25 @@ export class BlockchainService {
     return toEther;
   }
 
+  private async getSolBalance(address: string): Promise<number> {
+    const response = await this.httpService.post(SOL_RPC,
+      {
+        jsonrpc: '2.0',
+        'method': 'getBalance',
+        'params': [
+          address
+        ],
+        'id': 0
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      }).toPromise();
+
+    const data = response.data.result?.value | 0;
+    const value = data / 1_000_000_000;
+
+    return value;
+  }
 }

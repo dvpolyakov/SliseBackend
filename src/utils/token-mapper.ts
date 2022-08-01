@@ -1,4 +1,5 @@
-import { TokenType } from '@prisma/client';
+import { ChainType, TokenType } from '@prisma/client';
+import { NetworkType } from '../enums/network-type';
 
 export function mapTokenType(tokenType: string): TokenType {
   let tknType: TokenType;
@@ -29,4 +30,26 @@ export function mapTokenType(tokenType: string): TokenType {
       break;
   }
   return tknType;
+}
+
+export function mapChainType(networkType: NetworkType): ChainType {
+  let chainType: ChainType;
+  switch (networkType) {
+    case  NetworkType.Unknown:
+      chainType = ChainType.UNKNOWN;
+      break;
+    case  NetworkType.Ethereum:
+      chainType = ChainType.ETHEREUM;
+      break;
+    case  NetworkType.Polygon:
+      chainType = ChainType.POLYGON;
+      break;
+    case  NetworkType.Solana:
+      chainType = ChainType.SOLANA;
+      break;
+    default:
+      chainType = ChainType.UNKNOWN;
+      break;
+  }
+  return chainType;
 }

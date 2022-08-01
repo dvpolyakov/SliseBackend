@@ -1,5 +1,5 @@
 export class AccountBalanceResponse {
-  ethBalance?: number;
+  tokenBalance?: number;
   usdBalance?: number;
 }
 

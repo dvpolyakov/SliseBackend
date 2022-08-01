@@ -1,9 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ArrayMinSize, IsArray, IsString, Length } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsEnum, IsString } from 'class-validator';
+import { NetworkType } from '../../enums/network-type';
 
 export class WhitelistInfoRequest {
   @ApiProperty({ type: String })
   @IsString()
   collectionName: string;
+
+  @ApiProperty({
+    enum: NetworkType,
+    isArray: false,
+    example: NetworkType.Ethereum,
+  })
+  @IsEnum(NetworkType)
+  networkType: NetworkType;
 }

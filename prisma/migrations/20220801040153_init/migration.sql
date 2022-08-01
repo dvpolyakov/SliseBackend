@@ -15,6 +15,8 @@ CREATE TABLE "Whitelist" (
     "discordMembers" INTEGER,
     "size" INTEGER NOT NULL,
     "chainType" "ChainType" NOT NULL DEFAULT E'ETHEREUM',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ownerId" TEXT NOT NULL,
 
     CONSTRAINT "Whitelist_pkey" PRIMARY KEY ("id")
 );
@@ -23,15 +25,33 @@ CREATE TABLE "Whitelist" (
 CREATE TABLE "WhitelistMember" (
     "id" TEXT NOT NULL,
     "address" TEXT NOT NULL,
-    "usdBalance" DOUBLE PRECISION NOT NULL,
-    "ethBalance" DOUBLE PRECISION NOT NULL,
-    "lastUpdate" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "whitelistId" TEXT NOT NULL,
     "totalTokens" INTEGER NOT NULL,
     "tokenProcessed" BOOLEAN NOT NULL DEFAULT true,
     "tokenProcessedAttemps" INTEGER NOT NULL,
 
     CONSTRAINT "WhitelistMember_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "User" (
+    "id" TEXT NOT NULL,
+    "address" TEXT,
+    "chainType" "ChainType" NOT NULL DEFAULT E'UNKNOWN',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "AccountBalance" (
+    "id" TEXT NOT NULL,
+    "whitelistMemberId" TEXT NOT NULL,
+    "tokenBalance" DOUBLE PRECISION NOT NULL,
+    "usdBalance" DOUBLE PRECISION NOT NULL,
+
+    CONSTRAINT "AccountBalance_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -50,7 +70,13 @@ CREATE TABLE "Token" (
 );
 
 -- AddForeignKey
+ALTER TABLE "Whitelist" ADD CONSTRAINT "Whitelist_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "WhitelistMember" ADD CONSTRAINT "WhitelistMember_whitelistId_fkey" FOREIGN KEY ("whitelistId") REFERENCES "Whitelist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "AccountBalance" ADD CONSTRAINT "AccountBalance_whitelistMemberId_fkey" FOREIGN KEY ("whitelistMemberId") REFERENCES "WhitelistMember"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Token" ADD CONSTRAINT "Token_whitelistMemberId_fkey" FOREIGN KEY ("whitelistMemberId") REFERENCES "WhitelistMember"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

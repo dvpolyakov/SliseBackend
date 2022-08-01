@@ -1,6 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { Token } from '@prisma/client';
 import { HttpService } from '@nestjs/axios';
 import {
   HolderInfo,
@@ -14,24 +13,21 @@ import { BlockChainEvent, BlockChainUserEvent } from './models/blockchain-events
 import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-import path from 'path';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import {
   CollectionInfoResponse,
   CollectionStats,
-  MutualHoldingsResponse, TargetingResponse,
-  TopHoldersDashboardResponse,
-  TopHoldersResponse,
-  WhitelistStatisticsResponse
+  TargetingResponse,
+  TopHoldersDashboardResponse
 } from './models/whitelist-statistics-response';
 import { PersistentStorageService } from '../persistentstorage/persistentstorage.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
-import Enumerable from 'linq';
 import papaparse from 'papaparse';
 import { TokenBalance } from './models/token-info';
 import { IntegraionService } from '../integration/integration.service';
-import { mapTokenType } from '../utils/token-mapper';
-import { AuthWhitelistMember } from './requests/whitelist-request';
+import { mapChainType } from '../utils/token-mapper';
+import { AuthWhitelistMember } from './requests/auth-whitelistmember-request';
+import { WHITELISTS_KEY_NAME } from '../utils/redis-consts';
 
 @Injectable()
 export class AnalyticsService {
@@ -79,56 +75,14 @@ export class AnalyticsService {
   }
 
   public async authWhitelistMember(request: AuthWhitelistMember): Promise<string> {
-    //TODO: whitelist id validation
-    //TODO: address validation
+    const existWhitelist = await this.redis.sismember(WHITELISTS_KEY_NAME, request.whitelistId);
+    if(!existWhitelist)
+      throw new BadRequestException(`Whitelist not found`);
 
-    const holderAddress = request.address.toLowerCase();
-    const tokenBalance = await this.blockchainService.getNFTs(holderAddress);
-    const accountBalance = await this.blockchainService.getAccountBalance(holderAddress);
-    const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
-
-    await this.prisma.$transaction(async () => {
-      const whitelistMember = await this.prisma.whitelistMember.create({
-        data: {
-          address: request.address,
-          ethBalance: accountBalance.ethBalance,
-          usdBalance: accountBalance.usdBalance,
-          totalTokens: totalNFTs,
-          whitelistId: request.whitelistId,
-          tokenProcessedAttemps: 0
-        }
-      });
-      const fetchedTokens = tokenBalance.map((token) => {
-        return {
-          contractAddress: token.contractAddress,
-          balance: token.balance,
-          contractName: token.contractName,
-          nftDescription: token.nftDescription,
-          nftVersion: token.nftVersion,
-          tokenType: mapTokenType(token.tokenType.toUpperCase()),
-          whitelistMemberId: whitelistMember.id,
-          items: JSON.stringify(token.nfts)
-        }
-      });
-      const tokens = await this.prisma.token.createMany({
-        data: fetchedTokens
-      });
-
-      if (!(fetchedTokens.length > 0)) {
-        await this.prisma.whitelistMember.update({
-          where: {
-            id: whitelistMember.id
-          },
-          data: {
-            tokenProcessed: false,
-            tokenProcessedAttemps : whitelistMember.tokenProcessedAttemps + 1
-          }
-        })
-      }
-      this.logger.debug(`${request.address} stored`);
+    const job = await this.holdersQueue.add('processWhitelistMemberEth', {
+      request
     });
-
-
+    this.logger.debug(`whitelist member: ${request.address} will be processed with jobId: ${job.id}`);
     return request.address;
   }
 
@@ -298,7 +252,6 @@ export class AnalyticsService {
     const result = await this.prisma.$queryRaw<any>`select address from "TargetingHolders" 
     inner join "TokenHolder" TH on TH.id = "TargetingHolders"."holderId" 
     where vector <= cast(${vector}::text as double precision)`;
-
 
     return {
       address: result
@@ -562,13 +515,16 @@ export class AnalyticsService {
   }
 
   public async storeClearWhitelist(whitelistRequest: WhitelistInfoRequest): Promise<WhitelistInfoResponse> {
-    this.logger.debug(`collection: ${whitelistRequest.collectionName} received for processing`);
+    this.logger.debug(`whitelist: ${whitelistRequest.collectionName} received`);
     const whitelist = await this.prisma.whitelist.create({
       data: {
         name: whitelistRequest.collectionName,
+        chainType: mapChainType(whitelistRequest.networkType),
         size: 0,
       }
     })
+    await this.redis.sadd(WHITELISTS_KEY_NAME, whitelist.id);
+    this.logger.debug(`whitelist: ${whitelistRequest.collectionName} stored`);
     return {
       name: whitelist.name,
       id: whitelist.id
@@ -579,8 +535,8 @@ export class AnalyticsService {
     const whitelistHolders = await Promise.all(addresses.map(async (address) => {
       const holderAddress = address.toLowerCase();
 
-      const tokenBalance = await this.blockchainService.getNFTs(holderAddress);
-      const accountBalance = await this.blockchainService.getAccountBalance(holderAddress);
+      const tokenBalance = await this.blockchainService.getNFTsEthereum(holderAddress);
+      const accountBalance = await this.blockchainService.getAccountBalanceEth(holderAddress);
       const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
       return {
         address: holderAddress,
@@ -600,7 +556,8 @@ export class AnalyticsService {
       const counts = {};
       for (var i = 0; i < arr.length; i++) {
         counts[arr[i].contractAddress] = 1 + (counts[arr[i].contractAddress] || 0);
-      };
+      }
+      ;
       return counts;
     };
 
@@ -790,10 +747,10 @@ export class AnalyticsService {
   public async getAddressStats(address: string): Promise<any> {
     const kazm = 'https://us-central1-kazm-flashlight-dev.cloudfunctions.net/getAddressStats';
     const response = await this.httpService.post(kazm, {
-      'data': {
-        'address': `${address}`
-      }
-    },
+        'data': {
+          'address': `${address}`
+        }
+      },
       {
         headers: {
           'Content-Type': 'application/json'
