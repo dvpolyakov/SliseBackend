@@ -8,6 +8,7 @@ import papaparse from 'papaparse';
 import { mapTokenType } from '../utils/token-mapper';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { ChainType } from '@prisma/client';
+import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../utils/redis-consts';
 
 @Processor({ name: 'waitlist', scope: Scope.DEFAULT })
 export class TokenProcessorService {
@@ -22,7 +23,7 @@ export class TokenProcessorService {
 
   private readonly logger = new Logger(TokenProcessorService.name);
 
-  @Process({name: 'processWhitelistMemberEth', concurrency: 1})
+  @Process({name: ETH_QUEUE_KEY_NAME, concurrency: 1})
   async processWhitelistMemberEth(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
     const request = job.data.request;
@@ -79,7 +80,7 @@ export class TokenProcessorService {
     });
   }
 
-  @Process({name: 'processWhitelistMemberSol', concurrency: 1})
+  @Process({name: SOL_QUEUE_KEY_NAME, concurrency: 1})
   async processWhitelistMemberSol(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
     const request = job.data.request;

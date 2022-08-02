@@ -24,7 +24,7 @@ model Whitelist {
   chainType        ChainType         @default(ETHEREUM)
   whitelistMembers WhitelistMember[]
   createdAt        DateTime          @default(now())
-  owner            User              @relation(fields: [ownerId], references: [id])
+  owner            User              @relation(fields: [ownerId], references: [address])
   ownerId          String
 }
 
@@ -42,8 +42,7 @@ model WhitelistMember {
 }
 
 model User {
-  id         String      @id @default(uuid())
-  address    String?
+  address    String      @id
   chainType  ChainType   @default(UNKNOWN)
   createdAt  DateTime    @default(now())
   whitelists Whitelist[]

@@ -53,3 +53,25 @@ export function mapChainType(networkType: NetworkType): ChainType {
   }
   return chainType;
 }
+
+export function mapTokenChainType(chainType: ChainType): NetworkType {
+  let networkType: NetworkType;
+  switch (chainType) {
+    case  ChainType.UNKNOWN:
+      networkType = NetworkType.Unknown;
+      break;
+    case  ChainType.ETHEREUM:
+      networkType = NetworkType.Ethereum;
+      break;
+    case  ChainType.POLYGON:
+      networkType = NetworkType.Polygon;
+      break;
+    case  ChainType.SOLANA:
+      networkType = NetworkType.Solana;
+      break;
+    default:
+      networkType = NetworkType.Unknown;
+      break;
+  }
+  return networkType;
+}

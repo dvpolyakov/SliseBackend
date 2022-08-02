@@ -16,6 +16,7 @@ import { PersistentStorageModule } from './persistentstorage/persistentstorage.m
 import { BlockchainModule } from './blockchain/blockchain.module';
 import { WarmupModule } from './warmup/warmup.module';
 import { IntegrationModule } from './integration/integration.module';
+import { UserModule } from './user/user.module';
 
 @Module({
   imports: [AuthModule, AnalyticsModule, PrismaModule, RedisModule.forRoot({
@@ -44,7 +45,8 @@ import { IntegrationModule } from './integration/integration.module';
     PersistentStorageModule,
     BlockchainModule,
     WarmupModule,
-    IntegrationModule
+    IntegrationModule,
+    UserModule
     // SentryModule.forRoot({
     //   dsn: 'sentry_io_dsn',
     //   debug: true,

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, UploadedFile, UseInterceptors, ValidationPipe } from '@nestjs/common';
+import { Body, Controller, Get, Post, UploadedFile, UseGuards, UseInterceptors, ValidationPipe } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SentryInterceptor } from '../interceptors/sentry.interceptor';
 import { TransformInterceptor } from '../interceptors/transform.interceptor';
@@ -7,17 +7,32 @@ import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { AuthWhitelistMember } from './requests/auth-whitelistmember-request';
+import { AuthGuard } from '../utils/guards';
+import { AuthUserRequest } from '../user/requests/auth-user-request';
+import { JwtTokenModel } from '../auth/models/jwt-model';
+import { UserService } from '../user/user.service';
+import { AuthModule } from '../auth/auth.module';
+import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Slice')
 @UseInterceptors(SentryInterceptor)
 @Controller({ path: 'api/analytics' })
 export class AnalyticsController {
-  constructor(private readonly analyticsService: AnalyticsService) {
+  constructor(
+    private readonly analyticsService: AnalyticsService,
+    private readonly authService: AuthService) {
   }
 
+  @UseGuards(AuthGuard)
   @Get('test')
   async testEndpoint() {
     return await this.analyticsService.test();
+  }
+
+  @Post('authUser')
+  @UseInterceptors(TransformInterceptor)
+  async authUser(@Body(new ValidationPipe()) request: AuthUserRequest): Promise<JwtTokenModel>{
+    return await this.authService.authUser(request);
   }
 
   @Post('storeWhitelist')

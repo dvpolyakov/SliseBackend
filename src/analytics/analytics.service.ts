@@ -27,7 +27,8 @@ import { TokenBalance } from './models/token-info';
 import { IntegraionService } from '../integration/integration.service';
 import { mapChainType } from '../utils/token-mapper';
 import { AuthWhitelistMember } from './requests/auth-whitelistmember-request';
-import { WHITELISTS_KEY_NAME } from '../utils/redis-consts';
+import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME, WHITELISTS_KEY_NAME } from '../utils/redis-consts';
+import { NetworkType } from '../enums/network-type';
 
 @Injectable()
 export class AnalyticsService {
@@ -57,13 +58,6 @@ export class AnalyticsService {
         `https://mainnet.infura.io/v3/${process.env.INFURA}`
       )
     );
-
-    // this.Moralis.start({
-    //   serverUrl: process.env.MORALIS_SERVER_URL,
-    //   appId: process.env.MORALIS_APP_ID,
-    //   masterKey: process.env.MORALIS_MASTER_KEY
-    // });
-
     this.ethDater = new this.ethDater(
       this.web3
     );
@@ -78,10 +72,34 @@ export class AnalyticsService {
     const existWhitelist = await this.redis.sismember(WHITELISTS_KEY_NAME, request.whitelistId);
     if(!existWhitelist)
       throw new BadRequestException(`Whitelist not found`);
+    let job;
 
-    const job = await this.holdersQueue.add('processWhitelistMemberEth', {
-      request
-    });
+    switch (request.networkType){
+      case NetworkType.Ethereum:
+        job = await this.holdersQueue.add('processWhitelistMemberEth', {
+          request
+        });
+        break;
+      case NetworkType.Polygon:
+        job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
+          request
+        });
+        break;
+      case NetworkType.Solana:
+        job = await this.holdersQueue.add(SOL_QUEUE_KEY_NAME, {
+          request
+        });
+        break;
+      case NetworkType.Unknown:
+        this.logger.debug(`unknown whitelist member ${request.address}`);
+        break;
+      default:
+        job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
+          request
+        });
+        break;
+    }
+
     this.logger.debug(`whitelist member: ${request.address} will be processed with jobId: ${job.id}`);
     return request.address;
   }
@@ -409,63 +427,6 @@ export class AnalyticsService {
 
   }
 
-  public async fetchNewBalances(address: string): Promise<any> {
-    try {
-      const options = {
-        address: address
-      };
-      const ethBalance = await this.Moralis.Web3API.account.getNativeBalance(options);
-      const usdBalance = (await this.ethPrice('usd'))[0];
-      const usd = +(usdBalance.substr(5, usdBalance.length));
-      const ethB = +(this.web3.utils.fromWei(ethBalance.balance, 'ether'));
-      const usdB = +((+usd) * ethB);
-
-      const data = {
-        ethBalance: ethB,
-        usdBalance: usdB
-      };
-      return data;
-    } catch {
-      return {
-        ethBalance: 0,
-        usdBalance: 0
-      }
-    }
-
-  }
-
-  public async tokenHoldersFromSource(network: number, token: string, pageSize: number): Promise<TokenHolderInternal[]> {
-    const holders = await this.fetchTokenHolders(network, token, pageSize);
-
-    return holders;
-  }
-
-  public async eventsByContractsAndAddresses(contractAddresses: string[], addresses: string[]): Promise<BlockChainUserEvent[]> {
-    this.logger.debug(`search for events by addresses ${addresses}`);
-    return await this.fetchEventsByContractsAndAddresses(contractAddresses, addresses);
-  }
-
-  // public async parseHolders(request: WhitelistInfoRequest): Promise<string> {
-  //   this.logger.debug(`collection: ${request.collectionName} received for processing`);
-  //   const hldrs = await this.fetchHolders(1, '', 10000);
-  //   const addresses = hldrs.items.map((item) => {
-  //     return item.address;
-  //   });
-  //   const waitlist = await this.prisma.waitlist.create({
-  //     data: {
-  //       name: request.collectionName,
-  //     }
-  //   });
-  //   const holdersRequest = {
-  //     addresses: addresses,
-  //     waitlistId: waitlist.id
-  //   };
-  //   const job = await this.holdersQueue.add('parseAndStore', {
-  //     holdersRequest
-  //   });
-  //   this.logger.debug(`collection: ${request.collectionName} will be processed with jobId: ${job.id}`);
-  //   return waitlist.id;
-  // }
 
   public async storeWhitelist(waitlistRequest: WhitelistInfoRequest, file: Express.Multer.File): Promise<WhitelistInfoResponse> {
     this.logger.debug(`collection: ${waitlistRequest.collectionName} received for processing`);
@@ -518,6 +479,7 @@ export class AnalyticsService {
     this.logger.debug(`whitelist: ${whitelistRequest.collectionName} received`);
     const whitelist = await this.prisma.whitelist.create({
       data: {
+        ownerId: whitelistRequest.ownerAddress,
         name: whitelistRequest.collectionName,
         chainType: mapChainType(whitelistRequest.networkType),
         size: 0,
