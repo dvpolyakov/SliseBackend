@@ -17,30 +17,42 @@ type ContextWithType = ExecutionContext & {
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly secretKey = process.env.SECRETKEY;
+  private readonly web3 = require('web3');
 
-  constructor(private readonly reflector: Reflector) {}
+  constructor(private readonly reflector: Reflector) {
+    this.web3 = new this.web3(
+      new this.web3.providers.HttpProvider('https://api.mycryptoapi.com/eth'),
+    );
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const ctx = context.switchToHttp().getRequest()
     if (!ctx.headers.authorization) {
       return false;
     }
-    ctx.user = await this.validateToken(ctx.headers.authorization);
+    ctx.user = await this.validateAddress(ctx.headers.authorization);
     return true;
   }
 
-  async validateToken(auth: string) {
-    if (auth.split(' ')[0] !== 'Bearer') {
+  async validateAddress(auth: string) {
+    //TODO Chain after sep address
+    if (auth.split(' ')[0] !== 'Metamask') {
       throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
     }
-    const token = auth.split(' ')[1];
+    const address = auth.split(' ')[1];
 
-    try {
+    const isAddress = this.web3.utils.isAddress(address);
+    if(!isAddress){
+      const message = `Invalid address`;
+      throw new HttpException(message, HttpStatus.UNAUTHORIZED);
+    }
+
+    /*try {
       const decoded = await jwt.verify(token, this.secretKey);
       return decoded;
     } catch (err) {
       const message = `Token error: ${err.message || err.name}`;
       throw new HttpException(message, HttpStatus.UNAUTHORIZED);
-    }
+    }*/
   }
 }

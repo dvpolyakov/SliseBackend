@@ -31,7 +31,7 @@ export class AnalyticsController {
 
   @Post('authUser')
   @UseInterceptors(TransformInterceptor)
-  async authUser(@Body(new ValidationPipe()) request: AuthUserRequest): Promise<JwtTokenModel>{
+  async authUser(@Body(new ValidationPipe()) request: AuthUserRequest): Promise<string>{
     return await this.authService.authUser(request);
   }
 

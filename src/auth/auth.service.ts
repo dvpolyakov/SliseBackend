@@ -16,13 +16,15 @@ export class AuthService{
     ) {
   }
 
-  public async authUser(request: AuthUserRequest): Promise<JwtTokenModel> {
+  public async authUser(request: AuthUserRequest): Promise<string> {
     const user = await this.userService.findOne(request);
     if(!user){
       const createdUser = await this.userService.createUser(request);
-      return this._createToken(createdUser);
+      return createdUser.address;
+      //return this._createToken(createdUser);
     }
-    return this._createToken(user);
+    return user.address;
+    //return this._createToken(user);
   }
 
   public async validateUser(payload: JwtPayload): Promise<User> {
