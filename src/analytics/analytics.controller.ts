@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
-  Get, Param,
-  Post, Put,
-  Query, Req,
-  UploadedFile,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req,
   UseGuards,
   UseInterceptors,
   ValidationPipe
@@ -15,18 +17,9 @@ import { TransformInterceptor } from '../common/interceptors/transform.intercept
 import { AnalyticsService } from './analytics.service';
 import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
-import { FileInterceptor } from '@nestjs/platform-express';
-import { AuthWhitelistMember } from '../auth/requests/auth-whitelistmember-request';
 import { AuthGuard } from '../common/interceptors/guards.interceptor';
-import { AuthUserRequest } from '../auth/requests/auth-user-request';
-import { JwtTokenModel } from '../auth/models/jwt-model';
-import { UserService } from '../user/user.service';
-import { AuthModule } from '../auth/auth.module';
-import { AuthService } from '../auth/auth.service';
-import { RequestContext } from '../common/contexts/request-context';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
-import { LinkParams } from './requests/linl-params';
 import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
@@ -60,7 +53,7 @@ export class AnalyticsController {
     return await this.analyticsService.regenerateLink(request, requestContext.user as JwtPayload);
   }
 
-  @Get('link/:link')
+  @Get('collection/:link')
   @UseInterceptors(TransformInterceptor)
   async whitelistInfo(@Param('link') link: string): Promise<WhiteListPreviewResponse> {
    return await this.analyticsService.getWhitelistInfoByLink(link);

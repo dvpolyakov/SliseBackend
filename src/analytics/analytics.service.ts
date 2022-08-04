@@ -1,34 +1,17 @@
-import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
-import {
-  HolderInfo,
-  TimestampEvent,
-  TokenHolder as TokenHolderInternal,
-  TokenHoldersResponse
-} from './models/token-holders';
-import { BalanceResponse } from './models/balances';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
-import { BlockChainEvent, BlockChainUserEvent } from './models/blockchain-events';
 import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
-import {
-  CollectionInfoResponse,
-  CollectionStats,
-  TargetingResponse,
-  TopHoldersDashboardResponse
-} from './models/whitelist-statistics-response';
+import { TargetingResponse } from './models/whitelist-statistics-response';
 import { PersistentStorageService } from '../persistentstorage/persistentstorage.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
-import papaparse from 'papaparse';
-import { TokenBalance } from './models/token-info';
 import { IntegraionService } from '../integration/integration.service';
-import { mapChainType, mapTokenChainType } from '../common/utils/token-mapper';
-import { AuthWhitelistMember } from '../auth/requests/auth-whitelistmember-request';
-import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME, WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
-import { NetworkType } from '../common/enums/network-type';
+import { mapChainType } from '../common/utils/token-mapper';
+import { WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
 import { UrlGeneratorService } from 'nestjs-url-generator';
@@ -140,7 +123,7 @@ export class AnalyticsService {
           }
         },
         whitelistInfo: {
-          create:{
+          create: {
             description: null,
             discord: null,
             discordMembers: null,
