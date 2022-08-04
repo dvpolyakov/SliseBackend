@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsString } from 'class-validator';
-import { NetworkType } from '../../enums/network-type';
+import { NetworkType } from '../../common/enums/network-type';
 
 export class AuthUserRequest {
   @ApiProperty({ type: String })

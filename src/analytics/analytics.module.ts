@@ -18,8 +18,7 @@ import { AuthModule } from '../auth/auth.module';
   }), 
   PersistentStorageModule,
   BlockchainModule,
-  IntegrationModule,
-  AuthModule],
+  IntegrationModule],
   providers: [AnalyticsService, AnalyticsController],
   exports: [AnalyticsService, AnalyticsController]
 })

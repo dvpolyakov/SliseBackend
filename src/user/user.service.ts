@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { User } from '@prisma/client';
-import { AuthUserRequest } from './requests/auth-user-request';
-import { mapChainType } from '../utils/token-mapper';
+import { AuthUserRequest } from '../auth/requests/auth-user-request';
+import { mapChainType } from '../common/utils/token-mapper';
 
 @Injectable()
 export class UserService {

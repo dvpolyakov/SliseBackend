@@ -17,6 +17,8 @@ import { BlockchainModule } from './blockchain/blockchain.module';
 import { WarmupModule } from './warmup/warmup.module';
 import { IntegrationModule } from './integration/integration.module';
 import { UserModule } from './user/user.module';
+import { UrlGeneratorModule } from 'nestjs-url-generator';
+import { AuthController } from './auth/auth.controller';
 
 @Module({
   imports: [AuthModule, AnalyticsModule, PrismaModule, RedisModule.forRoot({
@@ -46,17 +48,14 @@ import { UserModule } from './user/user.module';
     BlockchainModule,
     WarmupModule,
     IntegrationModule,
-    UserModule
-    // SentryModule.forRoot({
-    //   dsn: 'sentry_io_dsn',
-    //   debug: true,
-    //   environment: 'dev',
-    //   release: null, // must create a release in sentry.io dashboard
-    //   logLevels: ['debug'] //based on sentry.io loglevel //
-    // })
+    UserModule,
+    UrlGeneratorModule.forRoot({
+      secret: process.env.LINK_SECRET,
+      appUrl: process.env.APP_URL,
+    }),
   ],
-  controllers: [AppController, AnalyticsController],
-  providers: [AppService, AnalyticsModule]
+  controllers: [AppController, AnalyticsController, AuthController],
+  providers: [AppService, AnalyticsModule, AuthController]
 })
 export class AppModule implements OnModuleInit {
   onModuleInit() {

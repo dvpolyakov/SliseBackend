@@ -5,12 +5,12 @@ import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import papaparse from 'papaparse';
-import { mapTokenType } from '../utils/token-mapper';
+import { mapTokenType } from '../common/utils/token-mapper';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { ChainType } from '@prisma/client';
-import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../utils/redis-consts';
+import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
 
-@Processor({ name: 'waitlist', scope: Scope.DEFAULT })
+@Processor({ name: 'whitelist', scope: Scope.DEFAULT })
 export class TokenProcessorService {
 
   constructor(

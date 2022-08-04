@@ -8,4 +8,7 @@ export class WhitelistInfoResponse {
   @ApiProperty({ type: String, required: false })
   @IsString()
   name?: string;
+  @ApiProperty({ type: String, required: false })
+  @IsString()
+  publicLink?: string;
 }

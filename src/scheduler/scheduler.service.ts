@@ -3,7 +3,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { mapTokenType } from '../utils/token-mapper';
+import { mapTokenType } from '../common/utils/token-mapper';
 import { BigInt } from 'postgres';
 
 

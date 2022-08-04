@@ -6,7 +6,7 @@ import { HttpService } from '@nestjs/axios';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 //import { LogDecoder } from "@maticnetwork/eth-decoder"
-import { ERC1155TokenABI, ERC20TokenABI, ERC721TokenABI } from '../utils/abi';
+import { ERC1155TokenABI, ERC20TokenABI, ERC721TokenABI } from '../common/utils/abi';
 
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 
@@ -15,7 +15,6 @@ export class BlockchainService {
   private readonly logger = new Logger(BlockchainService.name);
   private readonly sdkPrivatKey = randomPrivateKey();
   private readonly etherspotSDK;
-  private readonly ethPrice = require('eth-price');
   private readonly web3 = require('web3');
   private LogsDecoder = require('logs-decoder');
   private ethers = require('ethers');

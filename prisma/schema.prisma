@@ -13,19 +13,54 @@ datasource db {
 }
 
 model Whitelist {
-  id               String            @id @default(uuid())
+  id               String                @id @default(uuid())
   name             String
   contractAddress  String?
-  twitter          String?
-  twitterFollowers Int?
-  discord          String?
-  discordMembers   Int?
   size             Int
-  chainType        ChainType         @default(ETHEREUM)
+  chainType        ChainType             @default(ETHEREUM)
   whitelistMembers WhitelistMember[]
-  createdAt        DateTime          @default(now())
-  owner            User              @relation(fields: [ownerId], references: [address])
+  createdAt        DateTime              @default(now())
+  owner            User                  @relation(fields: [ownerId], references: [address])
   ownerId          String
+  whitelistInfo    WhitelistInfo?
+  settings         RegistrationSettings?
+  whitelistLink    WhitelistLink?
+  metadata         String?
+}
+
+model WhitelistInfo {
+  id                   String    @id @default(uuid())
+  logo                 String?
+  urlSlug              String?
+  mintPrice            Float?
+  mintDate             DateTime?
+  registrationEndDate DateTime?
+  url                  String?
+  twitter              String?
+  twitterFollowers     Int?
+  discord              String?
+  discordMembers       Int?
+  description          String?
+  whitelist            Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId          String    @unique
+}
+
+model RegistrationSettings {
+  id                  String    @id @default(uuid())
+  registrationActive  Boolean
+  twitterVerification Boolean
+  minTwitterFollowers Int
+  discordVerification Boolean
+  minWalletBalance    Int
+  totalSize           Int
+  whitelist           Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId         String    @unique
+}
+
+model WhitelistLink {
+  link        String    @id
+  whitelist   Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId String    @unique
 }
 
 model WhitelistMember {
@@ -54,7 +89,7 @@ model AccountBalance {
   whitelistMemberId String
   tokenBalance      Float
   usdBalance        Float
-  chainType         ChainType   @default(UNKNOWN)
+  chainType         ChainType       @default(UNKNOWN)
 }
 
 model Token {

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsString, Length, Max, Min } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { NetworkType } from '../../enums/network-type';
+import { NetworkType } from '../../common/enums/network-type';
 
 export class AuthWhitelistMember {
   @ApiProperty({ type: String })

@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsString, Length } from 'class-validator';
-import { NetworkType } from '../../enums/network-type';
+import { NetworkType } from '../../common/enums/network-type';
 
 export class WhitelistInfoRequest {
   @ApiProperty({ type: String })
@@ -14,9 +14,4 @@ export class WhitelistInfoRequest {
   })
   @IsEnum(NetworkType)
   networkType: NetworkType;
-
-  @ApiProperty({ type: String })
-  @Length(42)
-  @IsString()
-  ownerAddress: string;
 }

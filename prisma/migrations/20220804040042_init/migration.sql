@@ -9,16 +9,54 @@ CREATE TABLE "Whitelist" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "contractAddress" TEXT,
-    "twitter" TEXT,
-    "twitterFollowers" INTEGER,
-    "discord" TEXT,
-    "discordMembers" INTEGER,
     "size" INTEGER NOT NULL,
     "chainType" "ChainType" NOT NULL DEFAULT E'ETHEREUM',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "ownerId" TEXT NOT NULL,
+    "metadata" TEXT,
 
     CONSTRAINT "Whitelist_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WhitelistInfo" (
+    "id" TEXT NOT NULL,
+    "logo" TEXT,
+    "urlSlug" TEXT,
+    "mintPrice" DOUBLE PRECISION,
+    "mintDate" TIMESTAMP(3),
+    "registrationEndDate" TIMESTAMP(3),
+    "url" TEXT,
+    "twitter" TEXT,
+    "twitterFollowers" INTEGER,
+    "discord" TEXT,
+    "discordMembers" INTEGER,
+    "description" TEXT,
+    "whitelistId" TEXT NOT NULL,
+
+    CONSTRAINT "WhitelistInfo_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RegistrationSettings" (
+    "id" TEXT NOT NULL,
+    "registrationActive" BOOLEAN NOT NULL,
+    "twitterVerification" BOOLEAN NOT NULL,
+    "minTwitterFollowers" INTEGER NOT NULL,
+    "discordVerification" BOOLEAN NOT NULL,
+    "minWalletBalance" INTEGER NOT NULL,
+    "totalSize" INTEGER NOT NULL,
+    "whitelistId" TEXT NOT NULL,
+
+    CONSTRAINT "RegistrationSettings_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "WhitelistLink" (
+    "link" TEXT NOT NULL,
+    "whitelistId" TEXT NOT NULL,
+
+    CONSTRAINT "WhitelistLink_pkey" PRIMARY KEY ("link")
 );
 
 -- CreateTable
@@ -36,12 +74,11 @@ CREATE TABLE "WhitelistMember" (
 
 -- CreateTable
 CREATE TABLE "User" (
-    "id" TEXT NOT NULL,
-    "address" TEXT,
+    "address" TEXT NOT NULL,
     "chainType" "ChainType" NOT NULL DEFAULT E'UNKNOWN',
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "User_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "User_pkey" PRIMARY KEY ("address")
 );
 
 -- CreateTable
@@ -50,6 +87,7 @@ CREATE TABLE "AccountBalance" (
     "whitelistMemberId" TEXT NOT NULL,
     "tokenBalance" DOUBLE PRECISION NOT NULL,
     "usdBalance" DOUBLE PRECISION NOT NULL,
+    "chainType" "ChainType" NOT NULL DEFAULT E'UNKNOWN',
 
     CONSTRAINT "AccountBalance_pkey" PRIMARY KEY ("id")
 );
@@ -69,8 +107,26 @@ CREATE TABLE "Token" (
     CONSTRAINT "Token_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateIndex
+CREATE UNIQUE INDEX "WhitelistInfo_whitelistId_key" ON "WhitelistInfo"("whitelistId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "RegistrationSettings_whitelistId_key" ON "RegistrationSettings"("whitelistId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "WhitelistLink_whitelistId_key" ON "WhitelistLink"("whitelistId");
+
 -- AddForeignKey
-ALTER TABLE "Whitelist" ADD CONSTRAINT "Whitelist_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Whitelist" ADD CONSTRAINT "Whitelist_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("address") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WhitelistInfo" ADD CONSTRAINT "WhitelistInfo_whitelistId_fkey" FOREIGN KEY ("whitelistId") REFERENCES "Whitelist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RegistrationSettings" ADD CONSTRAINT "RegistrationSettings_whitelistId_fkey" FOREIGN KEY ("whitelistId") REFERENCES "Whitelist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "WhitelistLink" ADD CONSTRAINT "WhitelistLink_whitelistId_fkey" FOREIGN KEY ("whitelistId") REFERENCES "Whitelist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WhitelistMember" ADD CONSTRAINT "WhitelistMember_whitelistId_fkey" FOREIGN KEY ("whitelistId") REFERENCES "Whitelist"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

@@ -1,4 +1,4 @@
-import { NetworkType } from '../../enums/network-type';
+import { NetworkType } from '../../common/enums/network-type';
 
 export class JwtPayload {
   address: string;

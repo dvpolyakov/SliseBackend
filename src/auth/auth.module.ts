@@ -4,6 +4,8 @@ import { UserModule } from '../user/user.module';
 import { PassportModule } from '@nestjs/passport';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtModule } from '@nestjs/jwt';
+import { BullModule } from '@nestjs/bull';
+import { AuthController } from './auth.controller';
 
 @Module({
   imports: [
@@ -19,8 +21,11 @@ import { JwtModule } from '@nestjs/jwt';
         expiresIn: `${process.env.EXPIRESIN}d`,
       },
     }),
+    BullModule.registerQueue({
+      name: 'whitelist',
+    }),
   ],
-  providers: [AuthService, JwtStrategy],
-  exports: [AuthService, PassportModule, JwtModule]
+  providers: [AuthService, JwtStrategy, AuthController],
+  exports: [AuthService, PassportModule, JwtModule, AuthController]
 })
 export class AuthModule {}
