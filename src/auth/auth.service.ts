@@ -12,6 +12,7 @@ import { NetworkType } from '../common/enums/network-type';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
+import { PrismaService } from '../prisma/prisma.service';
 
 
 @Injectable()
@@ -22,6 +23,7 @@ export class AuthService{
     private readonly jwtService: JwtService,
     @InjectQueue('whitelist') private readonly holdersQueue: Queue,
     @InjectRedis() private readonly redis: Redis,
+    private readonly prisma: PrismaService
     ) {
   }
 
@@ -37,7 +39,12 @@ export class AuthService{
   }
 
   public async authWhitelistMember(request: AuthWhitelistMember): Promise<string> {
-    const existWhitelist = await this.redis.sismember(WHITELISTS_KEY_NAME, request.whitelistId);
+    //const existWhitelist = await this.redis.sismember(WHITELISTS_KEY_NAME, request.whitelistId);
+    const existWhitelist = await this.prisma.whitelistLink.findUnique({
+      where:{
+        link: request.link
+      }
+    });
     if(!existWhitelist)
       throw new BadRequestException(`Whitelist not found`);
     let job;

@@ -12,7 +12,7 @@ export class AuthWhitelistMember {
 
   @ApiProperty({ type: String })
   @IsString()
-  whitelistId: string;
+  link: string;
 
   @ApiProperty({
     enum: NetworkType,
