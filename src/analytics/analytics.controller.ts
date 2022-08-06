@@ -23,6 +23,7 @@ import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
 import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
+import { WhitelistStatisticsResponse } from './models/whitelist-statistics-response';
 
 @ApiTags('Slice')
 @UseInterceptors(SentryInterceptor)
@@ -70,5 +71,11 @@ export class AnalyticsController {
   @UseInterceptors(TransformInterceptor)
   async updateWhitelistSettings(@Param('whitelistId') whitelistId: string, @Body() whitelist: WhitelistSettingsRequest,  @Req() requestContext: any): Promise<WhitelistSettingsResponse> {
     return await this.analyticsService.updateWhitelistSettings(whitelistId, whitelist, requestContext.user as JwtPayload);
+  }
+
+  @Get('whitelistStatistics')
+  @UseInterceptors(TransformInterceptor)
+  async whitelistStatistics(@Query('whitelistId') whitelistId: string,  @Req() requestContext: any): Promise<WhitelistStatisticsResponse> {
+    return await this.analyticsService.getWhitelistStatistics(whitelistId);
   }
 }

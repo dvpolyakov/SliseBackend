@@ -7,15 +7,16 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import {
+  AlsoHold, CollectionInfoResponse,
   MutualHoldingsResponse,
-  TargetingResponse,
+  TargetingResponse, TopHoldersDashboardResponse,
   TopHoldersResponse,
   WhitelistStatisticsResponse
 } from './models/whitelist-statistics-response';
 import { PersistentStorageService } from '../persistentstorage/persistentstorage.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { IntegraionService } from '../integration/integration.service';
-import { mapChainType } from '../common/utils/token-mapper';
+import { mapChainType, mapTokenChainType } from '../common/utils/token-mapper';
 import { WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
@@ -23,6 +24,9 @@ import { UrlGeneratorService } from 'nestjs-url-generator';
 import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
+import { TokenData } from './models/token-info';
+import { NetworkType } from '../common/enums/network-type';
+import { ChainType } from '@prisma/client';
 
 @Injectable()
 export class AnalyticsService {
@@ -75,13 +79,13 @@ export class AnalyticsService {
     };
   }
 
-  public async whitelistStatistics(whitelistId: string): Promise<WhitelistStatisticsResponse> {
+  public async getWhitelistStatistics(whitelistId: string): Promise<WhitelistStatisticsResponse> {
     const existTopHolders = await this.redis.get(`whitelistStatistics ${whitelistId}`);
     if (existTopHolders) {
       return JSON.parse(existTopHolders);
     } else {
       const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
-      const QUERY_LIMIT = 30;
+      const QUERY_LIMIT = 1;
       const whitelist = await this.prisma.whitelist.findUnique({
         where: {
           id: whitelistId
@@ -96,14 +100,15 @@ export class AnalyticsService {
         this.integrationService.getDiscordInfo(whitelist.whitelistInfo.discord)
       ]);
 
-      const [topHolders, mutualHolders, whales, bluechips] = await Promise.all([
-        await this.prisma.$queryRaw<TopHoldersResponse[]>`select "WhitelistMember".address, AB."usdBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts from "WhitelistMember"
+      const [topHolders, mutualHoldings, whales, bluechips, whitelistSize] = await Promise.all([
+        await this.prisma.$queryRaw<TopHoldersResponse[]>`
+        select "WhitelistMember".id, "WhitelistMember".address, AB."usdBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
         where "WhitelistMember"."whitelistId" = ${whitelistId} 
         order by AB."usdBalance" desc 
         limit ${QUERY_LIMIT};`,
         await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
-        select "Token"."contractAddress", "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
+        select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
         inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
         where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" = 'ERC721' and "Token"."contractAddress" <> ${ENS_ADDRESS}
         group by "Token"."contractAddress", "Token"."contractName"
@@ -116,10 +121,48 @@ export class AnalyticsService {
         await this.prisma.$queryRaw<number>`
         select count(*) from "WhitelistMember"
         where "WhitelistMember"."totalTokens" >= cast(${10}::text as double precision) and "whitelistId" = ${whitelistId}`,
+        await this.prisma.whitelistMember.count({
+          where: {
+            whitelistId: whitelistId
+          }
+        })
       ]);
 
+      let failedHoldings: string[] = [];
 
-      topHolders.map((holder) => {
+      await Promise.all(mutualHoldings.map(async (holding) => {
+        try {
+          const response = await this.blockchainService.getCollectionInfo(holding.address, mapTokenChainType(whitelist.chainType));
+          if (response) {
+            holding.holdings = response;
+          }
+        } catch (e) {
+          failedHoldings.push(holding.address);
+        }
+      }));
+
+      this.logger.debug(`failed fetched: ${failedHoldings}`);
+
+      mutualHoldings.sort((a, b) => {
+        return b.totalholdings - a.totalholdings;
+      });
+
+      let initPercent = 100;
+      let initValue: number;
+      mutualHoldings.map((holding, idx) => {
+        if (idx === 0) {
+          initValue = holding.totalholdings;
+          holding.percent = initPercent;
+        } else {
+          holding.percent = ((holding.totalholdings / initValue) * initPercent);
+        }
+      });
+
+      if (mutualHoldings.length > 8) {
+        await this.redis.set(`${whitelistId} mutualHolders`, JSON.stringify(mutualHoldings));
+      }
+
+      topHolders.map(async (holder) => {
         if (holder.portfolio >= 2000000) {
           holder.label = 'whale';
         } else {
@@ -136,6 +179,26 @@ export class AnalyticsService {
         holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
       });
 
+      const topHoldersDashboard: TopHoldersDashboardResponse = {
+        topHolders: topHolders,
+        bots: 10,
+        bluechipHolders: bluechips[0].count,
+        whales: whales[0].count,
+        size: whitelistSize
+      }
+
+      const response: WhitelistStatisticsResponse = {
+        bluechipHolders: bluechips[0].count,
+        bots: 10,
+        discordInfo: discordInfo,
+        twitterFollowersCount: twitterFollowersCount,
+        whales: whales[0].count,
+        whitelistSize: whitelistSize,
+        topHolders: topHolders,
+        mutualHoldings: mutualHoldings
+      }
+
+      return response;
     }
   }
 
@@ -334,5 +397,32 @@ export class AnalyticsService {
       const symb = w[0].toUpperCase();
       return symb + w.substring(1, w.length);
     }).join('');
+  }
+
+  private async topHoldingsForAddress(userId: string, address: string, networkType: ChainType): Promise<AlsoHold> {
+    const topTokens = await this.prisma.token.findMany({
+      where: {
+        whitelistMemberId: userId
+      },
+      orderBy: {
+        balance: 'desc'
+      },
+      take: 3
+    });
+    const totalTop = topTokens.reduce((accumulator, item) => accumulator + item.balance, 0)
+    const alsoHoldings: CollectionInfoResponse[] = await Promise.all(topTokens.map(async (token) => {
+      const items: TokenData[] = JSON.parse(token.items.toString());
+      const collectionInfo = await this.blockchainService.getCollectionInfo(address, mapTokenChainType(networkType));
+      return {
+        totalSupply: null,
+        logo: collectionInfo.logo || items[0].image,
+        stats: null
+      }
+    }));
+
+    return {
+      total: totalTop,
+      collectionInfo: alsoHoldings
+    }
   }
 }

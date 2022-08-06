@@ -29,20 +29,20 @@ model Whitelist {
 }
 
 model WhitelistInfo {
-  id                   String    @id @default(uuid())
-  logo                 String?
-  urlSlug              String?
-  mintPrice            Float?
-  mintDate             DateTime?
+  id                  String    @id @default(uuid())
+  logo                String?
+  urlSlug             String?
+  mintPrice           Float?
+  mintDate            DateTime?
   registrationEndDate DateTime?
-  url                  String?
-  twitter              String?
-  twitterFollowers     Int?
-  discord              String?
-  discordMembers       Int?
-  description          String?
-  whitelist            Whitelist @relation(fields: [whitelistId], references: [id])
-  whitelistId          String    @unique
+  url                 String?
+  twitter             String?
+  twitterFollowers    Int?
+  discord             String?
+  discordMembers      Int?
+  description         String?
+  whitelist           Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId         String    @unique
 }
 
 model RegistrationSettings {
@@ -64,25 +64,25 @@ model WhitelistLink {
 }
 
 model WhitelistMember {
-  id                    String           @id @default(uuid())
+  id                    String               @id @default(uuid())
   address               String
-  createdAt             DateTime         @default(now())
-  whitelist             Whitelist        @relation(fields: [whitelistId], references: [id])
+  createdAt             DateTime             @default(now())
+  whitelist             Whitelist            @relation(fields: [whitelistId], references: [id])
   whitelistId           String
   tokens                Token[]
   totalTokens           Int
-  tokenProcessed        Boolean          @default(true)
+  tokenProcessed        Boolean              @default(true)
   tokenProcessedAttemps Int
   AccountBalance        AccountBalance[]
-  WhitelistMemberInfo        WhitelistMemberInfo?
+  WhitelistMemberInfo   WhitelistMemberInfo?
 }
 
 model WhitelistMemberInfo {
-  twitter              String?
-  twitterFollowers     Int?
-  discord              String?
+  twitter           String?
+  twitterFollowers  Int?
+  discord           String?
   whitelistMember   WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
-  whitelistMemberId String @unique
+  whitelistMemberId String          @unique
 }
 
 model User {
@@ -112,6 +112,38 @@ model Token {
   whitelistMember   WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
   whitelistMemberId String
   items             Json            @db.JsonB
+  collectionInfo    CollectionInfo?
+}
+
+model CollectionInfo {
+  id                              String  @id @default(uuid())
+  token                           Token   @relation(fields: [tokenId], references: [id])
+  tokenId                         String  @unique
+  floor_price                     Int?
+  total_supply                    Int?
+  mint_price                      Int?
+  num_owners                      Int?
+  one_day_volume                  Int?
+  one_day_change                  Int?
+  one_day_sales                   Int?
+  one_day_average_price           Int?
+  seven_day_volume                Int?
+  seven_day_change                Int?
+  seven_day_sales                 Int?
+  seven_day_average_price         Int?
+  thirty_day_volume               Int?
+  thirty_day_change               Int?
+  thirty_day_sales                Int?
+  thirty_day_average_price        Int?
+  total_volume                    Int?
+  total_sales                     Int?
+  total_minted                    Int?
+  average_price                   Int?
+  market_cap                      Int?
+  floor_price_historic_one_day    Int?
+  floor_price_historic_seven_day  Int?
+  floor_price_historic_thirty_day Int?
+  updated_date                    String?
 }
 
 enum TokenType {

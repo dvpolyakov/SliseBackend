@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
 import { NetworkNames, randomPrivateKey, Sdk } from 'etherspot';
 import { AccountBalanceResponse } from './models/account-balance';
 import { TokenBalance } from '../analytics/models/token-info';
@@ -10,7 +10,7 @@ import { ERC721TokenABI } from '../common/utils/abi';
 import { CollectionInfoResponse, CollectionStats } from '../analytics/models/whitelist-statistics-response';
 
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
-const ETH_RPC = 'https://api.mycryptoapi.com/eth';
+const ETH_RPC = 'https://rpc.ankr.com/eth';
 
 @Injectable()
 export class BlockchainService {
@@ -56,30 +56,60 @@ export class BlockchainService {
   }
 
   public async getCollectionInfo(address: string, network: string): Promise<CollectionInfoResponse> {
-    const query = `https://api.nftport.xyz/v0/nfts/${address}?chain=${network}&page_number=1&page_size=1&include=all&refresh_metadata=true`;
+    network = network.toLowerCase();
+    try {
+      const query = `https://api.nftport.xyz/v0/nfts/${address}?chain=${network}&page_number=1&page_size=1&include=all&refresh_metadata=true`;
+      const response = await this.httpService.get(query, {
+        headers: {
+          'Authorization': `${process.env.NFTPORT_API_KEY}`
+        }
+      }).toPromise();
 
-    const response = await this.httpService.get(query, {
-      headers: {
-        'Authorization': `${process.env.NFTPORT_API_KEY}`
+      const data = response.data;
+      const collectionStats = await this.getCollectionStats(address, network);
+      let result: CollectionInfoResponse = {
+        totalSupply: data.total || 0,
+        logo: data.contract.metadata.thumbnail_url,
+        stats: collectionStats
       }
-    }).toPromise();
+      const contract = new this.web3.eth.Contract(ERC721TokenABI, address);
+      if (result.totalSupply === 0) {
+        result.totalSupply = await contract.methods.totalSupply().call();
+      }
+      if (!result.logo) {
+        const logo = await contract.methods.tokenURI(0).call();
+        result.logo = `https://ipfs.io/${logo}`;
+      }
 
-    const data = response.data;
-    const collectionStats = await this.getCollectionStats(address, network);
-    let result: CollectionInfoResponse = {
-      totalSupply: data.total || 0,
-      logo: data.contract.metadata.thumbnail_url,
-      stats: collectionStats
+      return result;
     }
-    const contract = new this.web3.eth.Contract(ERC721TokenABI, address);
-    if (result.totalSupply === 0) {
-      result.totalSupply = await contract.methods.totalSupply().call();
-    }
-    if (!result.logo) {
-      result.logo = await contract.methods.tokenURI(0).call();
-    }
+    catch (e) {
+      this.logger.debug(`error processing token ${address} ${e.toString()}`);
+      /*const contract = new this.web3.eth.Contract(ERC721TokenABI, address);
+      this.logger.debug(11);
+      const [tokenURI, totalSupply] = await Promise.all([
+        await contract.methods.tokenURI(0).call(),
+        await contract.methods.totalSupply().call(),
+            ]);
+      this.logger.debug(1);
+      const response = await this.httpService.get(this.getIPFSLink(tokenURI)).toPromise();
+      const image = response.data.image;
+      console.log(image);
+      const resultImage = image.startsWith('ipfs') ? this.getIPFSLink(image) : image;
+      console.log(resultImage);
+      const result: CollectionInfoResponse = {
+        totalSupply: totalSupply || 0,
+        logo: resultImage,
+        stats: {
+          totalHolders: totalSupply,
+          floor: 0.08,
+          supply: totalSupply,
+          mintPrice: 0.08
+        }
+      }
 
-    return result;
+      return result;*/
+    }
   }
 
   private async getCollectionStats(address: string, network: string): Promise<CollectionStats> {
@@ -93,14 +123,35 @@ export class BlockchainService {
 
     const data = response.data;
     return {
-      floor: data.statistics.floor_price || 1.16,
-      supply: data.statistics.total_supply || 10000,
-      mintPrice: data.statistics.floor_price / data.statistics.total_supply,
-      totalHolders: data.statistics.num_owners || 0
+      floor_price: data.statistics.floor_price || 1.16,
+      total_supply: data.statistics.total_supply || 10000,
+      mint_price: data.statistics.floor_price / data.statistics.total_supply,
+      num_owners: data.statistics.num_owners || 0,
+      average_price: data.statistics.average_price || 0,
+      floor_price_historic_one_day: data.statistics.floor_price_historic_one_day || 0,
+      floor_price_historic_seven_day: data.statistics.floor_price_historic_seven_day || 0,
+      floor_price_historic_thirty_day: data.statistics.floor_price_historic_thirty_day || 0,
+      market_cap: data.statistics.market_cap || 0,
+      one_day_average_price: data.statistics.one_day_average_price || 0,
+      one_day_change: data.statistics.one_day_change || 0,
+      one_day_sales: data.statistics.one_day_sales || 0,
+      one_day_volume: data.statistics.one_day_volume || 0,
+      seven_day_average_price: data.statistics.seven_day_average_price || 0,
+      seven_day_change: data.statistics.seven_day_change || 0,
+      seven_day_sales: data.statistics.seven_day_sales || 0,
+      seven_day_volume: data.statistics.seven_day_volume || 0,
+      thirty_day_average_price: data.statistics.thirty_day_average_price || 0,
+      thirty_day_change: data.statistics.thirty_day_change || 0,
+      thirty_day_sales: data.statistics.thirty_day_sales || 0,
+      thirty_day_volume: data.statistics.thirty_day_volume || 0,
+      total_minted: data.statistics.total_minted || 0,
+      total_sales: data.statistics.total_sales || 0,
+      total_volume: data.statistics.total_volume || 0,
+      updated_date: data.statistics.updated_date || 0,
     }
   }
 
-  public async getNFTsSolana(address: string): Promise<any> {
+  public async getNFTsSolana(address: string): Promise<TokenBalance[]> {
     const data = await Promise.all(await this.fetchNFTsSolana(address, 1));
     const uniqueTokens = [...new Map(data.map(item =>
       [item['collectionAddress'], item])).values()];
@@ -160,7 +211,7 @@ export class BlockchainService {
               tokenId: +nft.tokenId,
               name: nft.name,
               amount: nft.amount,
-              image: nft.image
+              image: nft.image,
             }
           })
         }
@@ -287,4 +338,9 @@ export class BlockchainService {
   private fix = (num: any, toFixed: number) => Number(
     num.toFixed(toFixed).match(/\d+(?:\.\d+)?/)[0]
   ).toFixed(toFixed);
+
+  private getIPFSLink(ipfs: string): string {
+    const token = ipfs.substring(ipfs.indexOf('/') + 1, ipfs.length);
+    return `https://ipfs.io/ipfs/${token}`;
+  }
 }

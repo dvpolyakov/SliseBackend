@@ -9,10 +9,13 @@ import { mapTokenType } from '../common/utils/token-mapper';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { ChainType } from '@prisma/client';
 import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
+import { TokenBalance } from '../analytics/models/token-info';
+import pLimit from 'p-limit';
 
-  @Processor({ name: 'whitelist', scope: Scope.DEFAULT })
+const CONCURRENT_WORKERS = 2;
+
+@Processor({ name: 'whitelist', scope: Scope.DEFAULT })
 export class TokenProcessorService {
-
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly analyticsService: AnalyticsService,
@@ -23,7 +26,7 @@ export class TokenProcessorService {
 
   private readonly logger = new Logger(TokenProcessorService.name);
 
-  @Process({name: ETH_QUEUE_KEY_NAME, concurrency: 1})
+  @Process({ name: ETH_QUEUE_KEY_NAME, concurrency: 1 })
   async processWhitelistMemberEth(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
     const jobRequest = job.data.jobRequest;
@@ -50,7 +53,13 @@ export class TokenProcessorService {
           chainType: ChainType.ETHEREUM
         }
       });
-      const fetchedTokens = tokenBalance.map((token) => {
+      const limit = pLimit(2);
+      let fetchedTokens: any[] = [];
+      let jobs: any[] = [];
+      tokenBalance.map((token) => jobs.push(limit(() => this.processToken(whitelistMember.id, token))))
+
+      fetchedTokens = await Promise.all(jobs);
+     /* const fetchedTokens = tokenBalance.map((token) => {
         return {
           contractAddress: token.contractAddress,
           balance: token.balance,
@@ -61,7 +70,7 @@ export class TokenProcessorService {
           whitelistMemberId: whitelistMember.id,
           items: JSON.stringify(token.nfts)
         }
-      });
+      });*/
       const tokens = await this.prisma.token.createMany({
         data: fetchedTokens
       });
@@ -81,7 +90,28 @@ export class TokenProcessorService {
     });
   }
 
-  @Process({name: SOL_QUEUE_KEY_NAME, concurrency: 1})
+  private async processToken(whitelistMemberId: string, token: TokenBalance): Promise<any> {
+    let collectionInfo
+    try{
+      collectionInfo = await this.blockchainService.getCollectionInfo(token.contractAddress, 'ethereum');
+    }
+    catch (e) {
+      this.logger.debug(e.toString());
+    }
+    return {
+      contractAddress: token.contractAddress,
+      balance: token.balance,
+      contractName: token.contractName,
+      nftDescription: token.nftDescription,
+      nftVersion: token.nftVersion,
+      tokenType: mapTokenType(token.tokenType.toUpperCase()),
+      whitelistMemberId: whitelistMemberId,
+      items: JSON.stringify(token.nfts),
+      collectionInfo: collectionInfo
+    }
+  }
+
+  @Process({ name: SOL_QUEUE_KEY_NAME, concurrency: 1 })
   async processWhitelistMemberSol(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
     const jobRequest = job.data.jobRequest;

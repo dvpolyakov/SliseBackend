@@ -1,3 +1,4 @@
+import { CollectionInfoResponse } from './whitelist-statistics-response';
 
 export interface TokenBalance {
   contractName: string
@@ -8,6 +9,7 @@ export interface TokenBalance {
   nftDescription: string
   balance: number
   nfts: TokenData[]
+  collectionInfo?: CollectionInfoResponse
 }
 
 export interface TokenData {
