@@ -96,7 +96,7 @@ export class AnalyticsService {
         this.integrationService.getDiscordInfo(whitelist.whitelistInfo.discord)
       ]);
 
-      const [topHolders, mutualHolders, whales] = await Promise.all([
+      const [topHolders, mutualHolders, whales, bluechips] = await Promise.all([
         await this.prisma.$queryRaw<TopHoldersResponse[]>`select "WhitelistMember".address, AB."usdBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
         where "WhitelistMember"."whitelistId" = ${whitelistId} 
@@ -109,11 +109,13 @@ export class AnalyticsService {
         group by "Token"."contractAddress", "Token"."contractName"
         order by totalHoldings desc
         limit ${QUERY_LIMIT};`,
-        await this.prisma.whitelistMember.count({
-          where: {
-            whitelistId: whitelistId
-          }
-        })
+        await this.prisma.$queryRaw<number>`
+        select count(*) from "WhitelistMember"
+        inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
+        where AB."usdBalance" >= cast(${2000000}::text as double precision) and "whitelistId" = ${whitelistId}`,
+        await this.prisma.$queryRaw<number>`
+        select count(*) from "WhitelistMember"
+        where "WhitelistMember"."totalTokens" >= cast(${10}::text as double precision) and "whitelistId" = ${whitelistId}`,
       ]);
 
 
@@ -185,7 +187,7 @@ export class AnalyticsService {
             minTwitterFollowers: 0,
             minWalletBalance: 0,
             totalSize: 10000,
-            registrationActive: true,
+            registrationActive: false,
             twitterVerification: false
           }
         },
@@ -218,6 +220,7 @@ export class AnalyticsService {
       name: whitelist.name,
       id: whitelist.id,
       publicLink: link,
+      registrationActive: false
     };
   }
 

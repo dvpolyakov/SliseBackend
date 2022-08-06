@@ -43,10 +43,20 @@ export class AuthService{
     const existWhitelist = await this.prisma.whitelistLink.findUnique({
       where:{
         link: request.link
+      },
+      include: {
+        whitelist: {
+          include: {
+            settings: true
+          }
+        }
       }
     });
     if(!existWhitelist)
       throw new BadRequestException(`Whitelist not found`);
+
+    if(existWhitelist.whitelist.settings.registrationActive !== true)
+      throw new BadRequestException('Registration not active');
 
     const isRegistered = await this.prisma.whitelistMember.count({
       where: {

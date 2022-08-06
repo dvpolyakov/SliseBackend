@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString } from 'class-validator';
+import { IsBoolean, IsString } from 'class-validator';
 
 export class WhitelistInfoResponse {
   @ApiProperty({ type: String })
@@ -11,4 +11,7 @@ export class WhitelistInfoResponse {
   @ApiProperty({ type: String, required: false })
   @IsString()
   publicLink?: string;
+  @ApiProperty({ type: Boolean, required: true })
+  @IsBoolean()
+  registrationActive: boolean
 }
