@@ -10,7 +10,7 @@ import { BlockchainService } from '../blockchain/blockchain.service';
 import { ChainType } from '@prisma/client';
 import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
 
-@Processor({ name: 'whitelist', scope: Scope.DEFAULT })
+  @Processor({ name: 'whitelist', scope: Scope.DEFAULT })
 export class TokenProcessorService {
 
   constructor(
@@ -26,19 +26,20 @@ export class TokenProcessorService {
   @Process({name: ETH_QUEUE_KEY_NAME, concurrency: 1})
   async processWhitelistMemberEth(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
-    const request = job.data.request;
-    this.logger.debug(`processing whitelist member address ${request.address}`)
-    const tokenBalance = await this.blockchainService.getNFTsEthereum(request.address);
-    const accountBalance = await this.blockchainService.getAccountBalanceEth(request.address);
+    const jobRequest = job.data.jobRequest;
+    this.logger.debug(`processing whitelist member address ${jobRequest.address}`)
+    const tokenBalance = await this.blockchainService.getNFTsEthereum(jobRequest.address);
+    const accountBalance = await this.blockchainService.getAccountBalanceEth(jobRequest.address);
     const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
 
     await this.prisma.$transaction(async () => {
-      const whitelistMember = await this.prisma.whitelistMember.create({
+      const whitelistMember = await this.prisma.whitelistMember.update({
+        where: {
+          id: jobRequest.whitelistMemberId
+        },
         data: {
-          address: request.address,
           totalTokens: totalNFTs,
-          whitelistId: request.whitelistId,
-          tokenProcessedAttemps: 0,
+          whitelistId: jobRequest.whitelistId,
         }
       });
       await this.prisma.accountBalance.create({
@@ -76,25 +77,25 @@ export class TokenProcessorService {
           }
         })
       }
-      this.logger.debug(`${request.address} stored`);
+      this.logger.debug(`${jobRequest.address} stored`);
     });
   }
 
   @Process({name: SOL_QUEUE_KEY_NAME, concurrency: 1})
   async processWhitelistMemberSol(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
-    const request = job.data.request;
-    this.logger.debug(`processing whitelist member address ${request.address}`)
-    const tokenBalance = await this.blockchainService.getNFTsSolana(request.address);
-    const accountBalance = await this.blockchainService.getAccountBalanceEth(request.address);
+    const jobRequest = job.data.jobRequest;
+    this.logger.debug(`processing whitelist member address ${jobRequest.address}`)
+    const tokenBalance = await this.blockchainService.getNFTsSolana(jobRequest.address);
+    const accountBalance = await this.blockchainService.getAccountBalanceEth(jobRequest.address);
     const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
 
     await this.prisma.$transaction(async () => {
       const whitelistMember = await this.prisma.whitelistMember.create({
         data: {
-          address: request.address,
+          address: jobRequest.address,
           totalTokens: totalNFTs,
-          whitelistId: request.whitelistId,
+          whitelistId: jobRequest.whitelistId,
           tokenProcessedAttemps: 0
         }
       });
@@ -133,7 +134,7 @@ export class TokenProcessorService {
           }
         })
       }
-      this.logger.debug(`${request.address} stored`);
+      this.logger.debug(`${jobRequest.address} stored`);
     });
   }
 }

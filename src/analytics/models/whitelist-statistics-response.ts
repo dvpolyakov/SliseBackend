@@ -1,7 +1,6 @@
 import { DiscordResponse } from './discord-response';
 
 export class TopHoldersResponse {
-  whale: boolean;
   address: string;
   nfts: number;
   portfolio: number;
@@ -44,6 +43,7 @@ export class CollectionStats {
   floor: number;
   supply: number;
   mintPrice: number;
+  totalHolders: number;
 }
 
 export class WhitelistStatisticsResponse {

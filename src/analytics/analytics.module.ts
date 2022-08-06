@@ -11,7 +11,7 @@ import { AuthModule } from '../auth/auth.module';
 
 @Module({
   imports: [BullModule.registerQueue({
-    name: 'waitlist',
+    name: 'whitelist',
   }), PrismaModule, HttpModule.register({
     timeout: 50000,
     maxRedirects: 5,

@@ -6,7 +6,12 @@ import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
-import { TargetingResponse } from './models/whitelist-statistics-response';
+import {
+  MutualHoldingsResponse,
+  TargetingResponse,
+  TopHoldersResponse,
+  WhitelistStatisticsResponse
+} from './models/whitelist-statistics-response';
 import { PersistentStorageService } from '../persistentstorage/persistentstorage.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { IntegraionService } from '../integration/integration.service';
@@ -36,7 +41,7 @@ export class AnalyticsService {
     @InjectRedis() private readonly redis: Redis,
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
-    @InjectQueue('waitlist') private readonly holdersQueue: Queue,
+    /*  @InjectQueue('waitlist') private readonly holdersQueue: Queue,*/
     private readonly storage: PersistentStorageService,
     private readonly blockchainService: BlockchainService,
     private readonly integrationService: IntegraionService,
@@ -68,6 +73,68 @@ export class AnalyticsService {
     return {
       address: result
     };
+  }
+
+  public async whitelistStatistics(whitelistId: string): Promise<WhitelistStatisticsResponse> {
+    const existTopHolders = await this.redis.get(`whitelistStatistics ${whitelistId}`);
+    if (existTopHolders) {
+      return JSON.parse(existTopHolders);
+    } else {
+      const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
+      const QUERY_LIMIT = 30;
+      const whitelist = await this.prisma.whitelist.findUnique({
+        where: {
+          id: whitelistId
+        },
+        include: {
+          whitelistInfo: true
+        }
+      })
+      const [twitterFollowersCount, discordInfo]
+        = await Promise.all([
+        this.integrationService.getTwitterFollowersCount(whitelist.whitelistInfo.twitter),
+        this.integrationService.getDiscordInfo(whitelist.whitelistInfo.discord)
+      ]);
+
+      const [topHolders, mutualHolders, whales] = await Promise.all([
+        await this.prisma.$queryRaw<TopHoldersResponse[]>`select "WhitelistMember".address, AB."usdBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts from "WhitelistMember"
+        inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
+        where "WhitelistMember"."whitelistId" = ${whitelistId} 
+        order by AB."usdBalance" desc 
+        limit ${QUERY_LIMIT};`,
+        await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
+        select "Token"."contractAddress", "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
+        inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
+        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" = 'ERC721' and "Token"."contractAddress" <> ${ENS_ADDRESS}
+        group by "Token"."contractAddress", "Token"."contractName"
+        order by totalHoldings desc
+        limit ${QUERY_LIMIT};`,
+        await this.prisma.whitelistMember.count({
+          where: {
+            whitelistId: whitelistId
+          }
+        })
+      ]);
+
+
+      topHolders.map((holder) => {
+        if (holder.portfolio >= 2000000) {
+          holder.label = 'whale';
+        } else {
+          holder.label = 'mixed';
+        }
+        holder.avgNFTPrice = holder.portfolio / holder.nfts;
+        if (holder.nfts > 20 && holder.nfts < 30) {
+          holder.holdingTimeLabel = 'mixed'
+        } else if (holder.nfts > 30) {
+          holder.holdingTimeLabel = 'holder'
+        } else {
+          holder.holdingTimeLabel = 'flipper'
+        }
+        holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
+      });
+
+    }
   }
 
   public async regenerateLink(request: GenerateLinkRequest, owner: JwtPayload): Promise<string> {

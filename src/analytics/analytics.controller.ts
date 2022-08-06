@@ -32,7 +32,6 @@ export class AnalyticsController {
     private readonly analyticsService: AnalyticsService) {
   }
 
-  @UseGuards(AuthGuard)
   @Get('test')
   async testEndpoint() {
     return await this.analyticsService.test();

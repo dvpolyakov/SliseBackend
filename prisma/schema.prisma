@@ -74,6 +74,15 @@ model WhitelistMember {
   tokenProcessed        Boolean          @default(true)
   tokenProcessedAttemps Int
   AccountBalance        AccountBalance[]
+WhitelisstMemberInfo        WhitelisstMemberInfo?
+}
+
+model WhitelistMemberInfo {
+  twitter              String?
+  twitterFollowers     Int?
+  discord              String?
+  whitelistMember   WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
+  whitelistMemberId String @unique
 }
 
 model User {

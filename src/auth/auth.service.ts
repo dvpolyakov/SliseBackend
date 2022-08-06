@@ -47,22 +47,50 @@ export class AuthService{
     });
     if(!existWhitelist)
       throw new BadRequestException(`Whitelist not found`);
+
+    const isRegistered = await this.prisma.whitelistMember.count({
+      where: {
+        whitelistId: existWhitelist.whitelistId,
+        address: request.address
+      }
+    }) > 0;
+
+    if(isRegistered)
+      throw new BadRequestException('Already registered');
+
+    const whitelistMember = await this.prisma.whitelistMember.create({
+      data: {
+        address: request.address,
+        totalTokens: 0,
+        whitelistId: existWhitelist.whitelistId,
+        tokenProcessedAttemps: 0,
+      }
+    });
+    this.logger.debug(`Saved whitelist member ${whitelistMember.address} in whitelist ${whitelistMember.whitelistId}`);
+
     let job;
+
+    const jobRequest = {
+      whitelistId: existWhitelist.whitelistId,
+      address: request.address,
+      networkType: request.networkType,
+      whitelistMemberId: whitelistMember.id
+    }
 
     switch (request.networkType){
       case NetworkType.Ethereum:
-        job = await this.holdersQueue.add('processWhitelistMemberEth', {
-          request
+        job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
+          jobRequest
         });
         break;
       case NetworkType.Polygon:
         job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
-          request
+          jobRequest
         });
         break;
       case NetworkType.Solana:
         job = await this.holdersQueue.add(SOL_QUEUE_KEY_NAME, {
-          request
+          jobRequest
         });
         break;
       case NetworkType.Unknown:
@@ -70,7 +98,7 @@ export class AuthService{
         break;
       default:
         job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
-          request
+          jobRequest
         });
         break;
     }

@@ -32,9 +32,9 @@ import { AuthController } from './auth/auth.controller';
   }),
     BullModule.forRoot({
       redis: {
-        host: process.env.REDIS_QUEUE_HOST,
-        port: process.env.REDIS_QUEUE_PORT,
-        password: process.env.REDIS_QUEUE_PASSWORD,
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT,
+        password: process.env.REDIS_PASSWORD,
         connectTimeout: 20000,
         tls: {
           rejectUnauthorized: false
