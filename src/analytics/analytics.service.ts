@@ -3,20 +3,20 @@ import { PrismaService } from '../prisma/prisma.service';
 import { HttpService } from '@nestjs/axios';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import { WhitelistInfoRequest } from './requests/whitelist-info-request';
-import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import {
-  AlsoHold, CollectionInfoResponse,
+  AlsoHold,
+  CollectionInfoResponse,
   MutualHoldingsResponse,
-  TargetingResponse, TopHoldersDashboardResponse,
+  TargetingResponse,
+  TopHoldersDashboardResponse,
   TopHoldersResponse,
   WhitelistStatisticsResponse
 } from './models/whitelist-statistics-response';
 import { PersistentStorageService } from '../persistentstorage/persistentstorage.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { IntegraionService } from '../integration/integration.service';
-import { mapChainType, mapTokenChainType } from '../common/utils/token-mapper';
+import { mapChainType } from '../common/utils/token-mapper';
 import { WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
@@ -24,9 +24,10 @@ import { UrlGeneratorService } from 'nestjs-url-generator';
 import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
-import { TokenData } from './models/token-info';
-import { NetworkType } from '../common/enums/network-type';
-import { ChainType } from '@prisma/client';
+
+const CACHE_EXPRIRE = 60 * 10;
+const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
+const QUERY_LIMIT = 30;
 
 @Injectable()
 export class AnalyticsService {
@@ -81,128 +82,77 @@ export class AnalyticsService {
 
   public async getWhitelistStatistics(whitelistId: string): Promise<WhitelistStatisticsResponse> {
     /*const existTopHolders = await this.redis.get(`whitelistStatistics ${whitelistId}`);*/
-   /* if (existTopHolders) {
-      return JSON.parse(existTopHolders);
-    } else {*/
-      const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
-      const QUERY_LIMIT = 30;
-      const whitelist = await this.prisma.whitelist.findUnique({
-        where: {
-          id: whitelistId
-        },
-        include: {
-          whitelistInfo: true
-        }
-      })
-      const [twitterFollowersCount, discordInfo]
-        = await Promise.all([
-        this.integrationService.getTwitterFollowersCount(whitelist.whitelistInfo.twitter),
-        this.integrationService.getDiscordInfo(whitelist.whitelistInfo.discord)
-      ]);
+    /* if (existTopHolders) {
+       return JSON.parse(existTopHolders);
+     } else {*/
+    const whitelist = await this.prisma.whitelist.findUnique({
+      where: {
+        id: whitelistId
+      },
+      include: {
+        whitelistInfo: true
+      }
+    })
+    const [twitterFollowersCount, discordInfo]
+      = await Promise.all([
+      this.integrationService.getTwitterFollowersCount(whitelist.whitelistInfo.twitter),
+      this.integrationService.getDiscordInfo(whitelist.whitelistInfo.discord)
+    ]);
 
-      const [topHolders, mutualHoldings, whales, bluechips, whitelistSize] = await Promise.all([
-        await this.prisma.$queryRaw<TopHoldersResponse[]>`
-        select "WhitelistMember".id, "WhitelistMember".address, AB."usdBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts from "WhitelistMember"
-        inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
-        where "WhitelistMember"."whitelistId" = ${whitelistId} 
-        order by AB."usdBalance" desc 
-        limit ${QUERY_LIMIT};`,
-        await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
-        select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
-        inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
-        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" <> ${ENS_ADDRESS}
-        group by "Token"."contractAddress", "Token"."contractName"
-        order by totalHoldings desc
-        limit ${QUERY_LIMIT};`,
-        await this.prisma.$queryRaw<number>`
+    const [whales, bluechips, whitelistSize] = await Promise.all([
+      await this.prisma.$queryRaw<number>`
         select count(*) from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
         where AB."usdBalance" >= cast(${2000000}::text as double precision) and "whitelistId" = ${whitelistId}`,
-        await this.prisma.$queryRaw<number>`
+      await this.prisma.$queryRaw<number>`
         select count(*) from "WhitelistMember"
         where "WhitelistMember"."totalTokens" >= cast(${10}::text as double precision) and "whitelistId" = ${whitelistId}`,
-        await this.prisma.whitelistMember.count({
-          where: {
-            whitelistId: whitelistId
-          }
-        })
-      ]);
-
-      let failedHoldings: string[] = [];
-
-      await Promise.all(mutualHoldings.map(async (holding) => {
-        const token = await this.prisma.token.findFirst({
-          where: {
-            contractAddress: holding.address
-          }
-        });
-
-        const logo = token.logo ?? token.items[0]?.image;
-        holding.holdings = {
-          totalSupply: token.totalSupply ?? token.total_supply ?? 0,
-          logo: logo,
-          floorPrice: token.floorPrice,
-          numOwners: token.numOwners
+      await this.prisma.whitelistMember.count({
+        where: {
+          whitelistId: whitelistId
         }
-      }));
+      })
+    ]);
 
-      mutualHoldings.sort((a, b) => {
-        return b.totalholdings - a.totalholdings;
-      });
+    const existMutualHolders = await this.redis.get(`${whitelistId} mutualHolders`);
+    let mutualHoldings: MutualHoldingsResponse[];
+    if (existMutualHolders)
+      mutualHoldings = JSON.parse(existMutualHolders);
+    else
+      mutualHoldings = await this.mutualHoldings(whitelistId);
 
-      let initPercent = 100;
-      let initValue: number;
-      mutualHoldings.map((holding, idx) => {
-        if (idx === 0) {
-          initValue = holding.totalholdings;
-          holding.percent = initPercent;
-        } else {
-          holding.percent = ((holding.totalholdings / initValue) * initPercent);
-        }
-      });
+    if (mutualHoldings.length > 30) {
+      await this.redis.set(`${whitelistId} mutualHoldings`, JSON.stringify(mutualHoldings), 'EX', CACHE_EXPRIRE);
+    }
 
-      /*if (mutualHoldings.length > 8) {
-        await this.redis.set(`${whitelistId} mutualHolders`, JSON.stringify(mutualHoldings));
-      }*/
+    const existTopHolders = await this.redis.get(`${whitelistId} mutualHoldings`);
+    let topHolders: TopHoldersResponse[];
+    if(existTopHolders)
+      topHolders = JSON.parse(existTopHolders);
+    else
+      topHolders = await this.topHolders(whitelistId);
 
-      topHolders.map(async (holder) => {
-        if (holder.portfolio >= 2000000) {
-          holder.label = 'whale';
-        } else {
-          holder.label = 'mixed';
-        }
-        holder.avgNFTPrice = holder.portfolio / holder.nfts;
-        if (holder.nfts > 20 && holder.nfts < 30) {
-          holder.holdingTimeLabel = 'mixed'
-        } else if (holder.nfts > 30) {
-          holder.holdingTimeLabel = 'holder'
-        } else {
-          holder.holdingTimeLabel = 'flipper'
-        }
-        holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
-      });
+    const topHoldersDashboard: TopHoldersDashboardResponse = {
+      topHolders: topHolders,
+      bots: 10,
+      bluechipHolders: bluechips[0].count,
+      whales: whales[0].count,
+      size: whitelistSize
+    }
 
-      const topHoldersDashboard: TopHoldersDashboardResponse = {
-        topHolders: topHolders,
-        bots: 10,
-        bluechipHolders: bluechips[0].count,
-        whales: whales[0].count,
-        size: whitelistSize
-      }
+    const response: WhitelistStatisticsResponse = {
+      bluechipHolders: bluechips[0].count,
+      bots: 10,
+      discordInfo: discordInfo,
+      twitterFollowersCount: twitterFollowersCount,
+      whales: whales[0].count,
+      whitelistSize: whitelistSize,
+      topHolders: topHolders,
+      mutualHoldings: mutualHoldings
+    }
 
-      const response: WhitelistStatisticsResponse = {
-        bluechipHolders: bluechips[0].count,
-        bots: 10,
-        discordInfo: discordInfo,
-        twitterFollowersCount: twitterFollowersCount,
-        whales: whales[0].count,
-        whitelistSize: whitelistSize,
-        topHolders: topHolders,
-        mutualHoldings: mutualHoldings
-      }
-
-      return response;
-   /* }*/
+    return response;
+    /* }*/
   }
 
   public async regenerateLink(request: GenerateLinkRequest, owner: JwtPayload): Promise<string> {
@@ -402,30 +352,106 @@ export class AnalyticsService {
     }).join('');
   }
 
-  /*private async topHoldingsForAddress(userId: string, address: string, networkType: ChainType): Promise<AlsoHold> {
-    const topTokens = await this.prisma.token.findMany({
-      where: {
-        whitelistMemberId: userId
-      },
-      orderBy: {
-        balance: 'desc'
-      },
-      take: 3
-    });
-    const totalTop = topTokens.reduce((accumulator, item) => accumulator + item.balance, 0)
-    const alsoHoldings: CollectionInfoResponse[] = await Promise.all(topTokens.map(async (token) => {
-      const items: TokenData[] = JSON.parse(token.items.toString());
-      const collectionInfo = await this.blockchainService.getCollectionInfo(address, mapTokenChainType(networkType));
-      return {
-        totalSupply: null,
-        logo: collectionInfo.logo || items[0].image,
-        stats: null
+  private async mutualHoldings(whitelistId: string): Promise<MutualHoldingsResponse[]> {
+    const mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
+        select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
+        inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
+        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" <> ${ENS_ADDRESS}
+        group by "Token"."contractAddress", "Token"."contractName"
+        order by totalHoldings desc
+        limit ${QUERY_LIMIT};`;
+    await Promise.all(mutualHoldings.map(async (holding) => {
+      const token = await this.prisma.token.findFirst({
+        where: {
+          contractAddress: holding.address
+        }
+      });
+
+      const logo = token.logo ?? token.items[0]?.image;
+      holding.holdings = {
+        totalSupply: token.totalSupply ?? token.total_supply ?? 0,
+        logo: logo,
+        floorPrice: token.floorPrice,
+        numOwners: token.numOwners
       }
     }));
 
-    return {
-      total: totalTop,
-      collectionInfo: alsoHoldings
-    }
-  }*/
+    mutualHoldings.sort((a, b) => {
+      return b.totalholdings - a.totalholdings;
+    });
+
+    let initPercent = 100;
+    let initValue: number;
+    mutualHoldings.map((holding, idx) => {
+      if (idx === 0) {
+        initValue = holding.totalholdings;
+        holding.percent = initPercent;
+      } else {
+        holding.percent = ((holding.totalholdings / initValue) * initPercent);
+      }
+    });
+
+    return mutualHoldings;
+  }
+
+  private async topHolders(whitelistId: string): Promise<TopHoldersResponse[]> {
+    const topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`
+        select "WhitelistMember".id, "WhitelistMember".address, AB."usdBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts from "WhitelistMember"
+        inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
+        where "WhitelistMember"."whitelistId" = ${whitelistId} 
+        order by AB."usdBalance" desc 
+        limit ${QUERY_LIMIT};`;
+
+    let initPercent = 100;
+    let initValue: number;
+
+    topHolders.map(async (holder) => {
+      if (holder.portfolio >= 2000000) {
+        holder.label = 'whale';
+      } else {
+        holder.label = 'mixed';
+      }
+      holder.avgNFTPrice = holder.portfolio / holder.nfts;
+      if (holder.nfts > 20 && holder.nfts < 30) {
+        holder.holdingTimeLabel = 'mixed'
+      } else if (holder.nfts > 30) {
+        holder.holdingTimeLabel = 'holder'
+      } else {
+        holder.holdingTimeLabel = 'flipper'
+      }
+      holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
+      const tokens = await this.prisma.token.findMany({
+        where: {
+          whitelistMemberId: holder.id,
+          logo: {
+            not: null
+          }
+        },
+        take: 3,
+      });
+      const collections: CollectionInfoResponse[] = tokens.map((token) => {
+        return {
+          logo: token.logo
+        }
+      });
+      const alsoHold: AlsoHold = {
+        total: holder.nfts - tokens.length,
+        collectionInfo: collections
+      };
+      holder.alsoHold = alsoHold;
+    });
+    topHolders.sort((a, b) => {
+      return b.avgNFTPrice - a.avgNFTPrice;
+    });
+
+    topHolders.map((holder, idx) => {
+      if (idx === 0) {
+        initValue = holder.avgNFTPrice;
+        holder.percent = initPercent;
+      } else {
+        holder.percent = ((holder.avgNFTPrice / initValue) * initPercent);
+      }
+    });
+    return topHolders;
+  }
 }

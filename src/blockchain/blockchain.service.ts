@@ -105,31 +105,31 @@ export class BlockchainService {
 
     const data = response.data;
     return {
-      floorPrice: data.statistics.floor_price || 1.16,
+      floorPrice: data.statistics.floor_price || null,
       total_supply: data.statistics.total_supply || 10000,
       mintPrice: data.statistics.floor_price / 2,
-      numOwners: data.statistics.num_owners || 0,
-      averagePrice: data.statistics.average_price || 0,
-      floorPriceHistoricOneDay: data.statistics.floor_price_historic_one_day || 0,
-      floorPriceHistoricSevenDay: data.statistics.floor_price_historic_seven_day || 0,
-      floorPriceHistoricThirtyDay: data.statistics.floor_price_historic_thirty_day || 0,
-      marketCap: data.statistics.market_cap || 0,
-      oneDayAveragePrice: data.statistics.one_day_average_price || 0,
-      oneDayChange: data.statistics.one_day_change || 0,
-      oneDaySales: data.statistics.one_day_sales || 0,
-      oneDayVolume: data.statistics.one_day_volume || 0,
-      sevenDayAveragePrice: data.statistics.seven_day_average_price || 0,
-      sevenDayChange: data.statistics.seven_day_change || 0,
-      sevenDaySales: data.statistics.seven_day_sales || 0,
-      sevenDayVolume: data.statistics.seven_day_volume || 0,
-      thirtyDayAveragePrice: data.statistics.thirty_day_average_price || 0,
-      thirtyDayChange: data.statistics.thirty_day_change || 0,
-      thirtyDaySales: data.statistics.thirty_day_sales || 0,
-      thirtyDayVolume: data.statistics.thirty_day_volume || 0,
-      totalMinted: data.statistics.total_minted || 0,
-      totalSales: data.statistics.total_sales || 0,
-      totalVolume: data.statistics.total_volume || 0,
-      updatedDate: data.statistics.updated_date|| Date.now.toString(),
+      numOwners: data.statistics.num_owners || null,
+      averagePrice: data.statistics.average_price || null,
+      floorPriceHistoricOneDay: data.statistics.floor_price_historic_one_day || null,
+      floorPriceHistoricSevenDay: data.statistics.floor_price_historic_seven_day || null,
+      floorPriceHistoricThirtyDay: data.statistics.floor_price_historic_thirty_day || null,
+      marketCap: data.statistics.market_cap || null,
+      oneDayAveragePrice: data.statistics.one_day_average_price || null,
+      oneDayChange: data.statistics.one_day_change || null,
+      oneDaySales: data.statistics.one_day_sales || null,
+      oneDayVolume: data.statistics.one_day_volume || null,
+      sevenDayAveragePrice: data.statistics.seven_day_average_price || null,
+      sevenDayChange: data.statistics.seven_day_change || null,
+      sevenDaySales: data.statistics.seven_day_sales || null,
+      sevenDayVolume: data.statistics.seven_day_volume || null,
+      thirtyDayAveragePrice: data.statistics.thirty_day_average_price || null,
+      thirtyDayChange: data.statistics.thirty_day_change || null,
+      thirtyDaySales: data.statistics.thirty_day_sales || null,
+      thirtyDayVolume: data.statistics.thirty_day_volume || null,
+      totalMinted: data.statistics.total_minted || null,
+      totalSales: data.statistics.total_sales || null,
+      totalVolume: data.statistics.total_volume || null,
+      updatedDate: data.statistics.updated_date || null,
     }
   }
 
@@ -338,5 +338,9 @@ export class BlockchainService {
       }
     }).toPromise();
     return +response.data.result.value.amount;
+  }
+
+  private randomIntFromInterval(min, max): number {
+    return Math.floor(Math.random() * (max - min + 1) + min)
   }
 }

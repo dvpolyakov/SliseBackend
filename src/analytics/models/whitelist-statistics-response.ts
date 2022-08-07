@@ -8,6 +8,7 @@ export class TopHoldersResponse {
   portfolio: number;
   label: string;
   avgNFTPrice: number;
+  percent: number
   alsoHold: AlsoHold;
   nftsTotalPrice: number;
   holdingTimeLabel: string;

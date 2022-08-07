@@ -51,6 +51,7 @@
     "bull": "^4.8.4",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.13.2",
+    "discord.js": "^14.1.2",
     "eth-log-decoder": "^0.0.1-beta.1",
     "ethers": "^5.6.9",
     "etherscan-api": "^10.0.9",
