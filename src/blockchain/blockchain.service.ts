@@ -1,4 +1,4 @@
-import { HttpException, HttpStatus, Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { NetworkNames, randomPrivateKey, Sdk } from 'etherspot';
 import { AccountBalanceResponse } from './models/account-balance';
 import { TokenBalance } from '../analytics/models/token-info';
@@ -6,9 +6,8 @@ import { HttpService } from '@nestjs/axios';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 //import { LogDecoder } from "@maticnetwork/eth-decoder"
-import { ERC721TokenABI } from '../common/utils/abi';
 import { CollectionInfoResponse } from '../analytics/models/whitelist-statistics-response';
-
+import * as OpenseaScraper from 'opensea-scraper'
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 const ETH_RPC = 'https://rpc.ankr.com/eth';
 
@@ -20,6 +19,7 @@ export class BlockchainService {
   private readonly web3 = require('web3');
   private ethers = require('ethers');
   private readonly provider;
+  private readonly solana;
 
   constructor(private readonly httpService: HttpService, @InjectRedis() private readonly redis: Redis) {
     this.etherspotSDK = new Sdk(this.sdkPrivatKey, {
@@ -28,6 +28,7 @@ export class BlockchainService {
     this.web3 = new this.web3(
       new this.web3.providers.HttpProvider(ETH_RPC),
     );
+
 
     this.provider = new this.ethers.providers.JsonRpcProvider(
       {
@@ -39,10 +40,21 @@ export class BlockchainService {
   }
 
   public async test(): Promise<any> {
-    const contract = new this.web3.eth.Contract(ERC721TokenABI, '0xED5AF388653567Af2F388E6224dC7C4b3241C544');
-    const r = await contract.methods.tokenURI().call();
-    const data = await this.getEthBalance('0xf896527c49b44aab3cf22ae356fa3af8e331f280');
+    const data = await this.opensea();
     return data;
+  }
+
+  private async opensea(): Promise<any> {
+    const options = {
+      debug: false,
+      sort: true,
+      logs: true,
+      additionalWait: 0,
+      browserInstance: undefined,
+    };
+
+    const basicInfo = await OpenseaScraper.basicInfo('boredapeyachtclub');
+    return basicInfo;
   }
 
   public async getTokenMetadata(contractAddress: string): Promise<any> {
@@ -79,30 +91,6 @@ export class BlockchainService {
     catch (e) {
       this.logger.debug(`error processing token ${address} ${e.toString()}`);
       return null;
-      /*const contract = new this.web3.eth.Contract(ERC721TokenABI, address);
-      this.logger.debug(11);
-      const [tokenURI, totalSupply] = await Promise.all([
-        await contract.methods.tokenURI(0).call(),
-        await contract.methods.totalSupply().call(),
-            ]);
-      this.logger.debug(1);
-      const response = await this.httpService.get(this.getIPFSLink(tokenURI)).toPromise();
-      const image = response.data.image;
-      console.log(image);
-      const resultImage = image.startsWith('ipfs') ? this.getIPFSLink(image) : image;
-      console.log(resultImage);
-      const result: CollectionInfoResponse = {
-        totalSupply: totalSupply || 0,
-        logo: resultImage,
-        stats: {
-          totalHolders: totalSupply,
-          floor: 0.08,
-          supply: totalSupply,
-          mintPrice: 0.08
-        }
-      }
-
-      return result;*/
     }
   }
 
@@ -336,5 +324,19 @@ export class BlockchainService {
   private getIPFSLink(ipfs: string): string {
     const token = ipfs.substring(ipfs.indexOf('/') + 1, ipfs.length);
     return `https://ipfs.io/ipfs/${token}`;
+  }
+
+  private async getSolSupply(address: string): Promise<number>{
+    const response = await this.httpService.post('https://rpc.ankr.com/solana', {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'getTokenSupply',
+      params: [address],
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    }).toPromise();
+    return +response.data.result.value.amount;
   }
 }
