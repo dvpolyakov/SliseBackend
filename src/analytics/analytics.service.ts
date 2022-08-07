@@ -80,12 +80,12 @@ export class AnalyticsService {
   }
 
   public async getWhitelistStatistics(whitelistId: string): Promise<WhitelistStatisticsResponse> {
-    const existTopHolders = await this.redis.get(`whitelistStatistics ${whitelistId}`);
-    if (existTopHolders) {
+    /*const existTopHolders = await this.redis.get(`whitelistStatistics ${whitelistId}`);*/
+   /* if (existTopHolders) {
       return JSON.parse(existTopHolders);
-    } else {
+    } else {*/
       const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
-      const QUERY_LIMIT = 1;
+      const QUERY_LIMIT = 30;
       const whitelist = await this.prisma.whitelist.findUnique({
         where: {
           id: whitelistId
@@ -110,7 +110,7 @@ export class AnalyticsService {
         await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
         select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
         inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
-        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" = 'ERC721' and "Token"."contractAddress" <> ${ENS_ADDRESS}
+        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" <> ${ENS_ADDRESS}
         group by "Token"."contractAddress", "Token"."contractName"
         order by totalHoldings desc
         limit ${QUERY_LIMIT};`,
@@ -131,17 +131,20 @@ export class AnalyticsService {
       let failedHoldings: string[] = [];
 
       await Promise.all(mutualHoldings.map(async (holding) => {
-        try {
-          const response = await this.blockchainService.getCollectionInfo(holding.address, mapTokenChainType(whitelist.chainType));
-          if (response) {
-            holding.holdings = response;
+        const token = await this.prisma.token.findFirst({
+          where: {
+            contractAddress: holding.address
           }
-        } catch (e) {
-          failedHoldings.push(holding.address);
+        });
+
+        const logo = token.logo ?? token.items[0]?.image;
+        holding.holdings = {
+          totalSupply: token.totalSupply ?? token.total_supply ?? 0,
+          logo: logo,
+          floorPrice: token.floorPrice,
+          numOwners: token.numOwners
         }
       }));
-
-      this.logger.debug(`failed fetched: ${failedHoldings}`);
 
       mutualHoldings.sort((a, b) => {
         return b.totalholdings - a.totalholdings;
@@ -158,9 +161,9 @@ export class AnalyticsService {
         }
       });
 
-      if (mutualHoldings.length > 8) {
+      /*if (mutualHoldings.length > 8) {
         await this.redis.set(`${whitelistId} mutualHolders`, JSON.stringify(mutualHoldings));
-      }
+      }*/
 
       topHolders.map(async (holder) => {
         if (holder.portfolio >= 2000000) {
@@ -199,7 +202,7 @@ export class AnalyticsService {
       }
 
       return response;
-    }
+   /* }*/
   }
 
   public async regenerateLink(request: GenerateLinkRequest, owner: JwtPayload): Promise<string> {

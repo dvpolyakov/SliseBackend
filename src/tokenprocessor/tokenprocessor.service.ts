@@ -59,9 +59,16 @@ export class TokenProcessorService {
       tokenBalance.map((token) => jobs.push(limit(() => this.processEthToken(whitelistMember.id, token))))
       fetchedTokens = await Promise.all(jobs);
       this.logger.debug(`processed ${fetchedTokens.length} tokens for ${whitelistMember.id}`);
+
       await this.prisma.token.createMany({
         data: fetchedTokens
       });
+
+      // await Promise.all(fetchedTokens.map(async (token) => {
+      //   await this.prisma.token.create({
+      //     data: token
+      //   });
+      // }));
 
       if (!(fetchedTokens.length > 0)) {
         await this.prisma.whitelistMember.update({
@@ -83,11 +90,11 @@ export class TokenProcessorService {
     try {
       collectionInfo = await this.blockchainService.getCollectionInfo(token.contractAddress, 'ethereum');
 
-        if(!collectionInfo?.logo){
+       /* if(!collectionInfo?.logo){
           collectionInfo = {
             logo : token.nfts[0]?.image
           }
-        }
+        }*/
 
     } catch (e) {
 

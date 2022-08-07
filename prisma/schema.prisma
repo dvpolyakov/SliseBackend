@@ -105,11 +105,11 @@ model AccountBalance {
 
 model Token {
   id                          String          @id @default(uuid())
-  contractName                String
+  contractName                String?
   contractAddress             String
   tokenType                   TokenType       @default(UNKOWN)
   nftVersion                  String?
-  nftDescription              String          @db.Text
+  nftDescription              String?          @db.Text
   balance                     Int
   whitelistMember             WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
   whitelistMemberId           String
