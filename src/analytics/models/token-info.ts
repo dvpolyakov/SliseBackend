@@ -1,5 +1,3 @@
-import { CollectionInfoResponse } from './whitelist-statistics-response';
-
 export interface TokenBalance {
   contractName: string
   contractSymbol: string

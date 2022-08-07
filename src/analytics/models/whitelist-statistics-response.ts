@@ -1,5 +1,4 @@
 import { DiscordResponse } from './discord-response';
-import { TokenBalance } from './token-info';
 
 export class TopHoldersResponse {
   id: string;
