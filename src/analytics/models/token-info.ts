@@ -9,7 +9,6 @@ export interface TokenBalance {
   nftDescription: string
   balance: number
   nfts: TokenData[]
-  collectionInfo?: CollectionInfoResponse
 }
 
 export interface TokenData {

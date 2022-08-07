@@ -4,13 +4,13 @@ import { Job } from 'bull';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
-import papaparse from 'papaparse';
+import { ChainType } from '@prisma/client'
 import { mapTokenType } from '../common/utils/token-mapper';
 import { BlockchainService } from '../blockchain/blockchain.service';
-import { ChainType } from '@prisma/client';
 import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
-import { TokenBalance } from '../analytics/models/token-info';
+import { TokenBalance, TokenData } from '../analytics/models/token-info';
 import pLimit from 'p-limit';
+import { CollectionInfoResponse } from '../analytics/models/whitelist-statistics-response';
 
 const CONCURRENT_WORKERS = 2;
 
@@ -53,25 +53,13 @@ export class TokenProcessorService {
           chainType: ChainType.ETHEREUM
         }
       });
-      const limit = pLimit(2);
+      const limit = pLimit(CONCURRENT_WORKERS);
       let fetchedTokens: any[] = [];
       let jobs: any[] = [];
-      tokenBalance.map((token) => jobs.push(limit(() => this.processToken(whitelistMember.id, token))))
-
+      tokenBalance.map((token) => jobs.push(limit(() => this.processEthToken(whitelistMember.id, token))))
       fetchedTokens = await Promise.all(jobs);
-     /* const fetchedTokens = tokenBalance.map((token) => {
-        return {
-          contractAddress: token.contractAddress,
-          balance: token.balance,
-          contractName: token.contractName,
-          nftDescription: token.nftDescription,
-          nftVersion: token.nftVersion,
-          tokenType: mapTokenType(token.tokenType.toUpperCase()),
-          whitelistMemberId: whitelistMember.id,
-          items: JSON.stringify(token.nfts)
-        }
-      });*/
-      const tokens = await this.prisma.token.createMany({
+      this.logger.debug(`processed ${fetchedTokens.length} tokens for ${whitelistMember.id}`);
+      await this.prisma.token.createMany({
         data: fetchedTokens
       });
 
@@ -90,12 +78,19 @@ export class TokenProcessorService {
     });
   }
 
-  private async processToken(whitelistMemberId: string, token: TokenBalance): Promise<any> {
-    let collectionInfo
-    try{
+  private async processEthToken(whitelistMemberId: string, token: TokenBalance): Promise<any> {
+    let collectionInfo: CollectionInfoResponse = null;
+    try {
       collectionInfo = await this.blockchainService.getCollectionInfo(token.contractAddress, 'ethereum');
-    }
-    catch (e) {
+
+        if(!collectionInfo?.logo){
+          collectionInfo = {
+            logo : token.nfts[0]?.image
+          }
+        }
+
+    } catch (e) {
+
       this.logger.debug(e.toString());
     }
     return {
@@ -107,7 +102,7 @@ export class TokenProcessorService {
       tokenType: mapTokenType(token.tokenType.toUpperCase()),
       whitelistMemberId: whitelistMemberId,
       items: JSON.stringify(token.nfts),
-      collectionInfo: collectionInfo
+      ...collectionInfo
     }
   }
 

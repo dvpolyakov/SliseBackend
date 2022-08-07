@@ -399,7 +399,7 @@ export class AnalyticsService {
     }).join('');
   }
 
-  private async topHoldingsForAddress(userId: string, address: string, networkType: ChainType): Promise<AlsoHold> {
+  /*private async topHoldingsForAddress(userId: string, address: string, networkType: ChainType): Promise<AlsoHold> {
     const topTokens = await this.prisma.token.findMany({
       where: {
         whitelistMemberId: userId
@@ -424,5 +424,5 @@ export class AnalyticsService {
       total: totalTop,
       collectionInfo: alsoHoldings
     }
-  }
+  }*/
 }

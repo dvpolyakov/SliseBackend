@@ -43,6 +43,7 @@ model WhitelistInfo {
   description         String?
   whitelist           Whitelist @relation(fields: [whitelistId], references: [id])
   whitelistId         String    @unique
+  createdAt           DateTime  @default(now())
 }
 
 model RegistrationSettings {
@@ -51,7 +52,7 @@ model RegistrationSettings {
   twitterVerification Boolean
   minTwitterFollowers Int
   discordVerification Boolean
-  minWalletBalance    Int
+  minWalletBalance    Float
   totalSize           Int
   whitelist           Whitelist @relation(fields: [whitelistId], references: [id])
   whitelistId         String    @unique
@@ -99,51 +100,48 @@ model AccountBalance {
   tokenBalance      Float
   usdBalance        Float
   chainType         ChainType       @default(UNKNOWN)
+  createdAt         DateTime        @default(now())
 }
 
 model Token {
-  id                String          @id @default(uuid())
-  contractName      String
-  contractAddress   String
-  tokenType         TokenType       @default(UNKOWN)
-  nftVersion        String?
-  nftDescription    String          @db.Text
-  balance           Int
-  whitelistMember   WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
-  whitelistMemberId String
-  items             Json            @db.JsonB
-  collectionInfo    CollectionInfo?
-}
-
-model CollectionInfo {
-  id                              String  @id @default(uuid())
-  token                           Token   @relation(fields: [tokenId], references: [id])
-  tokenId                         String  @unique
-  floor_price                     Int?
-  total_supply                    Int?
-  mint_price                      Int?
-  num_owners                      Int?
-  one_day_volume                  Int?
-  one_day_change                  Int?
-  one_day_sales                   Int?
-  one_day_average_price           Int?
-  seven_day_volume                Int?
-  seven_day_change                Int?
-  seven_day_sales                 Int?
-  seven_day_average_price         Int?
-  thirty_day_volume               Int?
-  thirty_day_change               Int?
-  thirty_day_sales                Int?
-  thirty_day_average_price        Int?
-  total_volume                    Int?
-  total_sales                     Int?
-  total_minted                    Int?
-  average_price                   Int?
-  market_cap                      Int?
-  floor_price_historic_one_day    Int?
-  floor_price_historic_seven_day  Int?
-  floor_price_historic_thirty_day Int?
-  updated_date                    String?
+  id                          String          @id @default(uuid())
+  contractName                String
+  contractAddress             String
+  tokenType                   TokenType       @default(UNKOWN)
+  nftVersion                  String?
+  nftDescription              String          @db.Text
+  balance                     Int
+  whitelistMember             WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
+  whitelistMemberId           String
+  items                       Json            @db.JsonB
+  logo                        String?
+  totalSupply                 Float?
+  floorPrice                  Float?
+  total_supply                Float?
+  mintPrice                   Float?
+  numOwners                   Float?
+  oneDayVolume                Float?
+  oneDayChange                Float?
+  oneDaySales                 Float?
+  oneDayAveragePrice          Float?
+  sevenDayVolume              Float?
+  sevenDayChange              Float?
+  sevenDaySales               Float?
+  sevenDayAveragePrice        Float?
+  thirtyDayVolume             Float?
+  thirtyDayChange             Float?
+  thirtyDaySales              Float?
+  thirtyDayAveragePrice       Float?
+  totalVolume                 Float?
+  totalSales                  Float?
+  totalMinted                 Float?
+  averagePrice                Float?
+  marketCap                   Float?
+  floorPriceHistoricOneDay    Float?
+  floorPriceHistoricSevenDay  Float?
+  floorPriceHistoricThirtyDay Float?
+  updatedDate                 String?
+  createdAt                   DateTime        @default(now())
 }
 
 enum TokenType {

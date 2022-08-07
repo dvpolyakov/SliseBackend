@@ -7,7 +7,7 @@ import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
 //import { LogDecoder } from "@maticnetwork/eth-decoder"
 import { ERC721TokenABI } from '../common/utils/abi';
-import { CollectionInfoResponse, CollectionStats } from '../analytics/models/whitelist-statistics-response';
+import { CollectionInfoResponse } from '../analytics/models/whitelist-statistics-response';
 
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 const ETH_RPC = 'https://rpc.ankr.com/eth';
@@ -70,21 +70,15 @@ export class BlockchainService {
       let result: CollectionInfoResponse = {
         totalSupply: data.total || 0,
         logo: data.contract.metadata.thumbnail_url,
-        stats: collectionStats
+        ...collectionStats
       }
-      const contract = new this.web3.eth.Contract(ERC721TokenABI, address);
-      if (result.totalSupply === 0) {
-        result.totalSupply = await contract.methods.totalSupply().call();
-      }
-      if (!result.logo) {
-        const logo = await contract.methods.tokenURI(0).call();
-        result.logo = `https://ipfs.io/${logo}`;
-      }
+
 
       return result;
     }
     catch (e) {
       this.logger.debug(`error processing token ${address} ${e.toString()}`);
+      return null;
       /*const contract = new this.web3.eth.Contract(ERC721TokenABI, address);
       this.logger.debug(11);
       const [tokenURI, totalSupply] = await Promise.all([
@@ -112,7 +106,7 @@ export class BlockchainService {
     }
   }
 
-  private async getCollectionStats(address: string, network: string): Promise<CollectionStats> {
+  private async getCollectionStats(address: string, network: string): Promise<CollectionInfoResponse> {
     const query = `https://api.nftport.xyz/v0/transactions/stats/${address}?chain=${network}`;
 
     const response = await this.httpService.get(query, {
@@ -123,31 +117,31 @@ export class BlockchainService {
 
     const data = response.data;
     return {
-      floor_price: data.statistics.floor_price || 1.16,
+      floorPrice: data.statistics.floor_price || 1.16,
       total_supply: data.statistics.total_supply || 10000,
-      mint_price: data.statistics.floor_price / data.statistics.total_supply,
-      num_owners: data.statistics.num_owners || 0,
-      average_price: data.statistics.average_price || 0,
-      floor_price_historic_one_day: data.statistics.floor_price_historic_one_day || 0,
-      floor_price_historic_seven_day: data.statistics.floor_price_historic_seven_day || 0,
-      floor_price_historic_thirty_day: data.statistics.floor_price_historic_thirty_day || 0,
-      market_cap: data.statistics.market_cap || 0,
-      one_day_average_price: data.statistics.one_day_average_price || 0,
-      one_day_change: data.statistics.one_day_change || 0,
-      one_day_sales: data.statistics.one_day_sales || 0,
-      one_day_volume: data.statistics.one_day_volume || 0,
-      seven_day_average_price: data.statistics.seven_day_average_price || 0,
-      seven_day_change: data.statistics.seven_day_change || 0,
-      seven_day_sales: data.statistics.seven_day_sales || 0,
-      seven_day_volume: data.statistics.seven_day_volume || 0,
-      thirty_day_average_price: data.statistics.thirty_day_average_price || 0,
-      thirty_day_change: data.statistics.thirty_day_change || 0,
-      thirty_day_sales: data.statistics.thirty_day_sales || 0,
-      thirty_day_volume: data.statistics.thirty_day_volume || 0,
-      total_minted: data.statistics.total_minted || 0,
-      total_sales: data.statistics.total_sales || 0,
-      total_volume: data.statistics.total_volume || 0,
-      updated_date: data.statistics.updated_date || 0,
+      mintPrice: data.statistics.floor_price / 2,
+      numOwners: data.statistics.num_owners || 0,
+      averagePrice: data.statistics.average_price || 0,
+      floorPriceHistoricOneDay: data.statistics.floor_price_historic_one_day || 0,
+      floorPriceHistoricSevenDay: data.statistics.floor_price_historic_seven_day || 0,
+      floorPriceHistoricThirtyDay: data.statistics.floor_price_historic_thirty_day || 0,
+      marketCap: data.statistics.market_cap || 0,
+      oneDayAveragePrice: data.statistics.one_day_average_price || 0,
+      oneDayChange: data.statistics.one_day_change || 0,
+      oneDaySales: data.statistics.one_day_sales || 0,
+      oneDayVolume: data.statistics.one_day_volume || 0,
+      sevenDayAveragePrice: data.statistics.seven_day_average_price || 0,
+      sevenDayChange: data.statistics.seven_day_change || 0,
+      sevenDaySales: data.statistics.seven_day_sales || 0,
+      sevenDayVolume: data.statistics.seven_day_volume || 0,
+      thirtyDayAveragePrice: data.statistics.thirty_day_average_price || 0,
+      thirtyDayChange: data.statistics.thirty_day_change || 0,
+      thirtyDaySales: data.statistics.thirty_day_sales || 0,
+      thirtyDayVolume: data.statistics.thirty_day_volume || 0,
+      totalMinted: data.statistics.total_minted || 0,
+      totalSales: data.statistics.total_sales || 0,
+      totalVolume: data.statistics.total_volume || 0,
+      updatedDate: data.statistics.updated_date|| Date.now.toString(),
     }
   }
 

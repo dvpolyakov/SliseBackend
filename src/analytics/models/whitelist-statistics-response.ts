@@ -1,4 +1,5 @@
 import { DiscordResponse } from './discord-response';
+import { TokenBalance } from './token-info';
 
 export class TopHoldersResponse {
   id: string;
@@ -38,34 +39,31 @@ export class AlsoHold {
 export class CollectionInfoResponse {
   totalSupply?: number;
   logo?: string;
-  stats?: CollectionStats;
-}
-export class CollectionStats {
-  floor_price: number;
-  total_supply: number;
-  mint_price: number;
-  num_owners: number;
-  one_day_volume: number;
-  one_day_change: number;
-  one_day_sales: number;
-  one_day_average_price: number;
-  seven_day_volume: number;
-  seven_day_change: number;
-  seven_day_sales: number;
-  seven_day_average_price: number;
-  thirty_day_volume: number;
-  thirty_day_change: number;
-  thirty_day_sales: number;
-  thirty_day_average_price: number;
-  total_volume: number;
-  total_sales: number;
-  total_minted: number;
-  average_price: number;
-  market_cap: number;
-  floor_price_historic_one_day: number;
-  floor_price_historic_seven_day: number;
-  floor_price_historic_thirty_day: number;
-  updated_date: string;
+  floorPrice?: number;
+  total_supply?: number;
+  mintPrice?: number;
+  numOwners?: number;
+  oneDayVolume?: number;
+  oneDayChange?: number;
+  oneDaySales?: number;
+  oneDayAveragePrice?: number;
+  sevenDayVolume?: number;
+  sevenDayChange?: number;
+  sevenDaySales?: number;
+  sevenDayAveragePrice?: number;
+  thirtyDayVolume?: number;
+  thirtyDayChange?: number;
+  thirtyDaySales?: number;
+  thirtyDayAveragePrice?: number;
+  totalVolume?: number;
+  totalSales?: number;
+  totalMinted?: number;
+  averagePrice?: number;
+  marketCap?: number;
+  floorPriceHistoricOneDay?: number;
+  floorPriceHistoricSevenDay?: number;
+  floorPriceHistoricThirtyDay?: number;
+  updatedDate?: string;
 }
 
 export class WhitelistStatisticsResponse {
