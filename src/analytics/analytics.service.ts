@@ -24,6 +24,7 @@ import { UrlGeneratorService } from 'nestjs-url-generator';
 import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
+import { TokenData } from './models/token-info';
 
 const CACHE_EXPRIRE = 60 * 10;
 const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
@@ -366,8 +367,8 @@ export class AnalyticsService {
           contractAddress: holding.address
         }
       });
-
-      const logo = token.logo ?? token.items[0]?.image;
+      const balances: TokenData[] = JSON.parse(token.items.toString());
+      const logo = token.logo ?? balances[0]?.image;
       holding.holdings = {
         totalSupply: token.totalSupply ?? token.total_supply ?? 0,
         logo: logo,
@@ -405,7 +406,7 @@ export class AnalyticsService {
     let initPercent = 100;
     let initValue: number;
 
-    topHolders.map(async (holder) => {
+    await Promise.all(topHolders.map(async (holder) => {
       if (holder.portfolio >= 2000000) {
         holder.label = 'whale';
       } else {
@@ -439,7 +440,7 @@ export class AnalyticsService {
         collectionInfo: collections
       };
       holder.alsoHold = alsoHold;
-    });
+    })) ;
     topHolders.sort((a, b) => {
       return b.avgNFTPrice - a.avgNFTPrice;
     });
