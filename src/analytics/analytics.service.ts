@@ -108,8 +108,8 @@ export class AnalyticsService {
         whitelistInfo: true
       }
     });
-    if (whitelist.ownerId !== owner.address)
-      throw new HttpException('Whitelist not found', HttpStatus.UNAUTHORIZED);
+    if (whitelist?.ownerId !== owner.address)
+      throw new HttpException('Whitelist not found', HttpStatus.FORBIDDEN);
 
     const existWhitelistStatistics = await this.redis.get(`${whitelistId} whitelistStatistics`);
     if (existWhitelistStatistics) {
@@ -173,7 +173,7 @@ export class AnalyticsService {
       }
     });
 
-    if (whitelist.ownerId !== owner.address)
+    if (whitelist?.ownerId !== owner.address)
       throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     const existMutualHolders = await this.redis.get(`${whitelistId} mutualHolders`);
@@ -193,7 +193,7 @@ export class AnalyticsService {
       }
     });
 
-    if (whitelist.ownerId !== owner.address)
+    if (whitelist?.ownerId !== owner.address)
       throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
@@ -223,7 +223,7 @@ export class AnalyticsService {
       }
     });
 
-    if (whitelist.ownerId !== owner.address)
+    if (whitelist?.ownerId !== owner.address)
       throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     const addedSymbols = this.makeHash(4);
@@ -313,7 +313,7 @@ export class AnalyticsService {
     });
 
     if (!whitelistLink.whitelist.whitelistInfo)
-      throw new HttpException('Whitelist not found', HttpStatus.UNAUTHORIZED);
+      throw new HttpException('Whitelist not found', HttpStatus.FORBIDDEN);
 
     return {
       whitelistName: whitelistLink.whitelist.name,
@@ -341,8 +341,8 @@ export class AnalyticsService {
       }
     });
 
-    if (whitelist.ownerId !== owner.address)
-      throw new HttpException('Forbidden', HttpStatus.UNAUTHORIZED);
+    if (whitelist?.ownerId !== owner.address)
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     return {
       discordVerification: whitelist.settings.discordVerification,
@@ -364,8 +364,8 @@ export class AnalyticsService {
       }
     });
 
-    if (whitelist.ownerId !== owner.address)
-      throw new HttpException('Forbidden', HttpStatus.UNAUTHORIZED);
+    if (whitelist?.ownerId !== owner.address)
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     const updatedWhitelistSettings = await this.prisma.registrationSettings.update({
       where: {
