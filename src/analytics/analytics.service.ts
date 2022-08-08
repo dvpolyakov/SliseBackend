@@ -6,6 +6,7 @@ import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import {
   AlsoHold,
+  BaseStatisticsResponse,
   CollectionInfoResponse,
   MutualHoldingsResponse,
   TargetingResponse,
@@ -16,7 +17,7 @@ import {
 import { PersistentStorageService } from '../persistentstorage/persistentstorage.service';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { IntegraionService } from '../integration/integration.service';
-import { mapChainType } from '../common/utils/token-mapper';
+import { mapChainType, mapTokenChainType } from '../common/utils/token-mapper';
 import { WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
@@ -25,10 +26,12 @@ import { WhiteListPreviewResponse } from './responses/whitelist-preview-response
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
 import { TokenData } from './models/token-info';
+import { WhitelistResponse } from './responses/whitelist-response';
 
 const CACHE_EXPRIRE = 60 * 10;
 const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
 const QUERY_LIMIT = 30;
+const MIN_FOR_CACHE = 15;
 
 @Injectable()
 export class AnalyticsService {
@@ -81,11 +84,22 @@ export class AnalyticsService {
     };
   }
 
-  public async getWhitelistStatistics(whitelistId: string): Promise<WhitelistStatisticsResponse> {
-    /*const existTopHolders = await this.redis.get(`whitelistStatistics ${whitelistId}`);*/
-    /* if (existTopHolders) {
-       return JSON.parse(existTopHolders);
-     } else {*/
+  public async getWhitelists(owner: JwtPayload): Promise<WhitelistResponse[]> {
+    const whitelists = await this.prisma.whitelist.findMany({
+      where: {
+        ownerId: owner.address
+      }
+    });
+    return whitelists.map((wl) => {
+      return {
+        id: wl.id,
+        name: wl.name,
+        networkType: mapTokenChainType(wl.chainType)
+      }
+    });
+  }
+
+  public async getWhitelistStatistics(whitelistId: string, owner: JwtPayload): Promise<WhitelistStatisticsResponse> {
     const whitelist = await this.prisma.whitelist.findUnique({
       where: {
         id: whitelistId
@@ -93,27 +107,74 @@ export class AnalyticsService {
       include: {
         whitelistInfo: true
       }
-    })
-    const [twitterFollowersCount, discordInfo]
-      = await Promise.all([
-      this.integrationService.getTwitterFollowersCount(whitelist.whitelistInfo.twitter),
-      this.integrationService.getDiscordInfo(whitelist.whitelistInfo.discord)
-    ]);
+    });
+    if (whitelist.ownerId !== owner.address)
+      throw new HttpException('Whitelist not found', HttpStatus.UNAUTHORIZED);
 
-    const [whales, bluechips, whitelistSize] = await Promise.all([
-      await this.prisma.$queryRaw<number>`
-        select count(*) from "WhitelistMember"
-        inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
-        where AB."usdBalance" >= cast(${2000000}::text as double precision) and "whitelistId" = ${whitelistId}`,
-      await this.prisma.$queryRaw<number>`
-        select count(*) from "WhitelistMember"
-        where "WhitelistMember"."totalTokens" >= cast(${10}::text as double precision) and "whitelistId" = ${whitelistId}`,
-      await this.prisma.whitelistMember.count({
-        where: {
-          whitelistId: whitelistId
+    const existWhitelistStatistics = await this.redis.get(`${whitelistId} whitelistStatistics`);
+    if (existWhitelistStatistics) {
+      return JSON.parse(existWhitelistStatistics);
+    } else {
+      const [twitterFollowersCount, discordInfo]
+        = await Promise.all([
+        this.integrationService.getTwitterFollowersCount(whitelist.whitelistInfo.twitter),
+        this.integrationService.getDiscordInfo(whitelist.whitelistInfo.discord)
+      ]);
+      const baseStatistics = await this.baseWhitelistStatistics(whitelistId);
+
+      const existMutualHolders = await this.redis.get(`${whitelistId} mutualHolders`);
+      let mutualHoldings: MutualHoldingsResponse[];
+      if (existMutualHolders)
+        mutualHoldings = JSON.parse(existMutualHolders);
+      else
+        mutualHoldings = await this.mutualHoldings(whitelistId);
+
+      if (mutualHoldings.length >= MIN_FOR_CACHE) {
+        await this.redis.set(`${whitelistId} mutualHoldings`, JSON.stringify(mutualHoldings), 'EX', CACHE_EXPRIRE);
+      }
+
+      const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
+      let topHoldersDashboard: TopHoldersDashboardResponse;
+      if (existTopHolders)
+        topHoldersDashboard = JSON.parse(existTopHolders);
+      else
+        topHoldersDashboard = {
+          topHolders: await this.topHolders(whitelistId),
+          bots: 10,
+          bluechipHolders: baseStatistics.bluechipHolders,
+          whales: baseStatistics.whales,
+          size: baseStatistics.whitelistSize
         }
-      })
-    ]);
+
+      if (topHoldersDashboard.topHolders.length >= MIN_FOR_CACHE) {
+        await this.redis.set(`${whitelistId} topHolders`, JSON.stringify(topHoldersDashboard), 'EX', CACHE_EXPRIRE);
+      }
+
+      const response: WhitelistStatisticsResponse = {
+        bots: 10,
+        discordInfo: discordInfo,
+        twitterFollowersCount: twitterFollowersCount,
+        bluechipHolders: baseStatistics.bluechipHolders,
+        whales: baseStatistics.whales,
+        whitelistSize: baseStatistics.whitelistSize,
+        topHolders: topHoldersDashboard.topHolders,
+        mutualHoldings: mutualHoldings
+      }
+      await this.redis.set(`${whitelistId} whitelistStatistics`, JSON.stringify(response), 'EX', CACHE_EXPRIRE);
+
+      return response;
+    }
+  }
+
+  public async getMutualHoldings(whitelistId: string, owner: JwtPayload): Promise<MutualHoldingsResponse[]> {
+    const whitelist = await this.prisma.whitelist.findUnique({
+      where: {
+        id: whitelistId
+      }
+    });
+
+    if (whitelist.ownerId !== owner.address)
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     const existMutualHolders = await this.redis.get(`${whitelistId} mutualHolders`);
     let mutualHoldings: MutualHoldingsResponse[];
@@ -122,38 +183,34 @@ export class AnalyticsService {
     else
       mutualHoldings = await this.mutualHoldings(whitelistId);
 
-    if (mutualHoldings.length > 30) {
-      await this.redis.set(`${whitelistId} mutualHoldings`, JSON.stringify(mutualHoldings), 'EX', CACHE_EXPRIRE);
+    return mutualHoldings;
+  }
+
+  public async getTopHolders(whitelistId: string, owner: JwtPayload): Promise<TopHoldersDashboardResponse> {
+    const whitelist = await this.prisma.whitelist.findUnique({
+      where: {
+        id: whitelistId
+      }
+    });
+
+    if (whitelist.ownerId !== owner.address)
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+
+    const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
+    let topHoldersDashboard: TopHoldersDashboardResponse;
+    if (existTopHolders)
+      topHoldersDashboard = JSON.parse(existTopHolders);
+    else {
+      const baseStatistics = await this.baseWhitelistStatistics(whitelistId);
+      topHoldersDashboard = {
+        topHolders: await this.topHolders(whitelistId),
+        bots: 10,
+        bluechipHolders: baseStatistics.bluechipHolders,
+        whales: baseStatistics.whales,
+        size: baseStatistics.whitelistSize
+      }
     }
-
-    const existTopHolders = await this.redis.get(`${whitelistId} mutualHoldings`);
-    let topHolders: TopHoldersResponse[];
-    if(existTopHolders)
-      topHolders = JSON.parse(existTopHolders);
-    else
-      topHolders = await this.topHolders(whitelistId);
-
-    const topHoldersDashboard: TopHoldersDashboardResponse = {
-      topHolders: topHolders,
-      bots: 10,
-      bluechipHolders: bluechips[0].count,
-      whales: whales[0].count,
-      size: whitelistSize
-    }
-
-    const response: WhitelistStatisticsResponse = {
-      bluechipHolders: bluechips[0].count,
-      bots: 10,
-      discordInfo: discordInfo,
-      twitterFollowersCount: twitterFollowersCount,
-      whales: whales[0].count,
-      whitelistSize: whitelistSize,
-      topHolders: topHolders,
-      mutualHoldings: mutualHoldings
-    }
-
-    return response;
-    /* }*/
+    return topHoldersDashboard;
   }
 
   public async regenerateLink(request: GenerateLinkRequest, owner: JwtPayload): Promise<string> {
@@ -256,7 +313,7 @@ export class AnalyticsService {
     });
 
     if (!whitelistLink.whitelist.whitelistInfo)
-      throw new HttpException('Whitelist not found', HttpStatus.BAD_REQUEST);
+      throw new HttpException('Whitelist not found', HttpStatus.UNAUTHORIZED);
 
     return {
       whitelistName: whitelistLink.whitelist.name,
@@ -285,7 +342,7 @@ export class AnalyticsService {
     });
 
     if (whitelist.ownerId !== owner.address)
-      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+      throw new HttpException('Forbidden', HttpStatus.UNAUTHORIZED);
 
     return {
       discordVerification: whitelist.settings.discordVerification,
@@ -308,7 +365,7 @@ export class AnalyticsService {
     });
 
     if (whitelist.ownerId !== owner.address)
-      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+      throw new HttpException('Forbidden', HttpStatus.UNAUTHORIZED);
 
     const updatedWhitelistSettings = await this.prisma.registrationSettings.update({
       where: {
@@ -435,12 +492,11 @@ export class AnalyticsService {
           logo: token.logo
         }
       });
-      const alsoHold: AlsoHold = {
+      holder.alsoHold = {
         total: holder.nfts - tokens.length,
         collectionInfo: collections
       };
-      holder.alsoHold = alsoHold;
-    })) ;
+    }));
     topHolders.sort((a, b) => {
       return b.avgNFTPrice - a.avgNFTPrice;
     });
@@ -454,5 +510,29 @@ export class AnalyticsService {
       }
     });
     return topHolders;
+  }
+
+  private async baseWhitelistStatistics(whitelistId: string): Promise<BaseStatisticsResponse> {
+    //TODO: cache this variables
+    const [whales, bluechips, whitelistSize] = await Promise.all([
+      await this.prisma.$queryRaw<number>`
+        select count(*) from "WhitelistMember"
+        inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
+        where AB."usdBalance" >= cast(${2000000}::text as double precision) and "whitelistId" = ${whitelistId}`,
+      await this.prisma.$queryRaw<number>`
+        select count(*) from "WhitelistMember"
+        where "WhitelistMember"."totalTokens" >= cast(${10}::text as double precision) and "whitelistId" = ${whitelistId}`,
+      await this.prisma.whitelistMember.count({
+        where: {
+          whitelistId: whitelistId
+        }
+      })
+    ]);
+
+    return {
+      bluechipHolders: bluechips[0].count,
+      whales: whales[0].count,
+      whitelistSize: whitelistSize
+    }
   }
 }

@@ -77,19 +77,10 @@ export class WhitelistStatisticsResponse {
   mutualHoldings: MutualHoldingsResponse[];
 }
 
-export class WhitelistResponse {
-  address: number;
-  holdings: CollectionInfoResponse[];
-  nfts: number;
-  avgNFTsPrice: number;
-  balance: number;
-  portfolio: number;
-  label: string;
+export class BaseStatisticsResponse {
+  whitelistSize: number;
   bluechipHolders: number;
   whales: number;
-  bots: number;
-  twitter?: string;
-  discord?: string;
 }
 
 export class TargetingResponse {
