@@ -49,10 +49,10 @@ import { AuthController } from './auth/auth.controller';
     WarmupModule,
     IntegrationModule,
     UserModule,
-    UrlGeneratorModule.forRoot({
+  /*  UrlGeneratorModule.forRoot({
       secret: process.env.LINK_SECRET,
       appUrl: process.env.APP_URL,
-    }),
+    }),*/
   ],
   controllers: [AppController, AnalyticsController, AuthController],
   providers: [AppService, AnalyticsModule, AuthController]

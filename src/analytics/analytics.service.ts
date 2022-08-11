@@ -20,7 +20,6 @@ import { mapChainType, mapTokenChainType } from '../common/utils/token-mapper';
 import { WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
-import { UrlGeneratorService } from 'nestjs-url-generator';
 import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
@@ -53,7 +52,6 @@ export class AnalyticsService {
     private readonly storage: PersistentStorageService,
     private readonly blockchainService: BlockchainService,
     private readonly integrationService: IntegraionService,
-    private readonly urlGeneratorService: UrlGeneratorService
   ) {
     this.web3 = new this.web3(
       new this.web3.providers.HttpProvider(
