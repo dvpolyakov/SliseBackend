@@ -67,20 +67,18 @@ export class AnalyticsController {
   }
 
   @UseGuards(AuthGuard)
-  @UseInterceptors(TransformInterceptor)
+  @Get('whitelistSettings')
   async whitelistSettings(@Query('whitelistId') whitelistId: string, @Req() requestContext: any): Promise<WhitelistSettingsResponse> {
     return await this.analyticsService.getWhitelistSettings(whitelistId, requestContext.user as JwtPayload);
   }
 
   @Get('getTargets')
-  @UseInterceptors(TransformInterceptor)
   async getTargets(@Query('vector') vector: number): Promise<any> {
     const response = await this.analyticsService.getTargets(vector);
     return response;
   }
 
   @Get('getExport')
-  @UseInterceptors(TransformInterceptor)
   async getExport(@Query('vector') vector: number): Promise<TargetingResponse> {
     const response = await this.analyticsService.exportTargets(vector);
     return response;

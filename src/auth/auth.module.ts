@@ -7,6 +7,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { BullModule } from '@nestjs/bull';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { AnalyticsModule } from '../analytics/analytics.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { PrismaModule } from '../prisma/prisma.module';
     BullModule.registerQueue({
       name: 'whitelist',
     }),
+    AnalyticsModule,
     PrismaModule
   ],
   providers: [AuthService, JwtStrategy, AuthController],

@@ -26,6 +26,7 @@ import { WhitelistSettingsRequest } from './requests/whitelist-settings-request'
 import { TokenData } from './models/token-info';
 import { WhitelistResponse } from './responses/whitelist-response';
 import { targetingHolders } from '../common/targeting-holders';
+import { makeRandomWord } from '../common/utils/hashmaker';
 
 const CACHE_EXPRIRE = 60 * 10;
 const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
@@ -257,7 +258,7 @@ export class AnalyticsService {
     if (whitelist?.ownerId !== owner.address)
       throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
-    const addedSymbols = this.makeHash(4);
+    const addedSymbols = makeRandomWord(4);
     const collectionName = this.splitCollectionName(whitelist.name);
     const link = `${collectionName}-${addedSymbols}`;
 
@@ -276,7 +277,7 @@ export class AnalyticsService {
 
   public async storeClearWhitelist(whitelistRequest: WhitelistInfoRequest, owner: JwtPayload): Promise<WhitelistInfoResponse> {
     this.logger.debug(`whitelist: ${whitelistRequest.collectionName} received`);
-    const addedSymbols = this.makeHash(4);
+    const addedSymbols = makeRandomWord(4);
     const collectionName = this.splitCollectionName(whitelistRequest.collectionName);
     const link = `${collectionName}-${addedSymbols}`;
 
@@ -420,17 +421,6 @@ export class AnalyticsService {
       registrationActive: updatedWhitelistSettings.registrationActive,
       twitterVerification: updatedWhitelistSettings.twitterVerification,
     }
-  }
-
-  private makeHash(length): string {
-    let result = '';
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-    const charactersLength = characters.length;
-    for (let i = 0; i < length; i++) {
-      result += characters.charAt(Math.floor(Math.random() *
-        charactersLength));
-    }
-    return result;
   }
 
   private splitCollectionName(name: string): string {

@@ -76,6 +76,8 @@ model WhitelistMember {
   tokenProcessedAttemps Int
   AccountBalance        AccountBalance[]
   WhitelistMemberInfo   WhitelistMemberInfo?
+
+  @@index([whitelistId], name: "idx_whitelistmember_whitelist_id")
 }
 
 model WhitelistMemberInfo {
@@ -109,7 +111,7 @@ model Token {
   contractAddress             String
   tokenType                   TokenType       @default(UNKOWN)
   nftVersion                  String?
-  nftDescription              String?          @db.Text
+  nftDescription              String?         @db.Text
   balance                     Int
   whitelistMember             WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
   whitelistMemberId           String
@@ -142,6 +144,8 @@ model Token {
   floorPriceHistoricThirtyDay Float?
   updatedDate                 String?
   createdAt                   DateTime        @default(now())
+
+  @@index([whitelistMemberId], name: "idx_token_whitelistmember_id")
 }
 
 enum TokenType {

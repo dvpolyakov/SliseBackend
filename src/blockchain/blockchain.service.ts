@@ -154,7 +154,7 @@ export class BlockchainService {
       return {
         contractName: collectionName,
         contractSymbol: 'SOL',
-        contractAddress: item.collectionAddress,
+        contractAddress: item.collectionAddress.toLowerCase(),
         tokenType: 'SOL',
         nftVersion: null,
         nftDescription: item.description,
@@ -183,7 +183,7 @@ export class BlockchainService {
         return {
           contractName: item.contractName,
           contractSymbol: item.contractSymbol,
-          contractAddress: item.contractAddress,
+          contractAddress: item.contractAddress.toLowerCase(),
           tokenType: item.tokenType,
           nftVersion: item.nftVersion,
           nftDescription: item.nftDescription,

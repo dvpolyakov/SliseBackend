@@ -13,35 +13,56 @@ import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import { PrismaService } from '../prisma/prisma.service';
-
+import { AnalyticsService } from '../analytics/analytics.service';
+import { makeRandomWord } from '../common/utils/hashmaker';
 
 @Injectable()
-export class AuthService{
+export class AuthService {
   private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly userService: UserService,
     private readonly jwtService: JwtService,
+    private readonly analyticsService: AnalyticsService,
     @InjectQueue('whitelist') private readonly holdersQueue: Queue,
     @InjectRedis() private readonly redis: Redis,
     private readonly prisma: PrismaService
-    ) {
+  ) {
   }
 
   public async authUser(request: AuthUserRequest): Promise<JwtTokenModel> {
     const user = await this.userService.findOne(request);
-    if(!user){
+    if (!user) {
       const createdUser = await this.userService.createUser(request);
+      const wl = await this.analyticsService.storeClearWhitelist({
+          networkType: request.networkType,
+          collectionName: `UnnamedWhitelist-${makeRandomWord(3)}`,
+        },
+        {
+          address: request.address,
+          networkType: request.networkType
+        });
       //return createdUser.address;
-      return this._createToken(createdUser);
+      let jwtTokenModel = this._createToken(createdUser);
+      jwtTokenModel.whitelistId = wl.id;
+      jwtTokenModel.publicLink = wl.publicLink;
+      return jwtTokenModel;
     }
     //return user.address;
-    return this._createToken(user);
+    let jwtTokenModelExist = this._createToken(user);
+    const wl = await this.prisma.whitelist.findFirst({
+      where: {
+        ownerId: user.address
+      }
+    });
+    jwtTokenModelExist.whitelistId = wl.id;
+    return jwtTokenModelExist;
   }
 
   public async authWhitelistMember(request: AuthWhitelistMember): Promise<string> {
     //const existWhitelist = await this.redis.sismember(WHITELISTS_KEY_NAME, request.whitelistId);
     const existWhitelist = await this.prisma.whitelistLink.findUnique({
-      where:{
+      where: {
         link: request.link
       },
       include: {
@@ -52,10 +73,10 @@ export class AuthService{
         }
       }
     });
-    if(!existWhitelist)
+    if (!existWhitelist)
       throw new BadRequestException(`Whitelist not found`);
 
-    if(existWhitelist.whitelist.settings.registrationActive !== true)
+    if (existWhitelist.whitelist.settings.registrationActive !== true)
       throw new BadRequestException('Registration not active');
 
     const isRegistered = await this.prisma.whitelistMember.count({
@@ -65,7 +86,7 @@ export class AuthService{
       }
     }) > 0;
 
-    if(isRegistered)
+    if (isRegistered)
       throw new BadRequestException('Already registered');
 
     const whitelistMember = await this.prisma.whitelistMember.create({
@@ -94,7 +115,7 @@ export class AuthService{
       whitelistMemberId: whitelistMember.id
     }
 
-    switch (request.networkType){
+    switch (request.networkType) {
       case NetworkType.Ethereum:
         job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
           jobRequest

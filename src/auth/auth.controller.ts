@@ -17,13 +17,13 @@ export class AuthController {
 
   @Post('authUser')
   @UseInterceptors(TransformInterceptor)
-  async authUser(@Body(new ValidationPipe()) request: AuthUserRequest): Promise<JwtTokenModel> {
+  async authUser(@Body(new ValidationPipe({ transform: true })) request: AuthUserRequest): Promise<JwtTokenModel> {
     return await this.authService.authUser(request);
   }
 
   @Post('authWhitelistMember')
   @UseInterceptors(TransformInterceptor)
-  async getWhitelists(@Body(new ValidationPipe()) request: AuthWhitelistMember): Promise<string> {
+  async getWhitelists(@Body(new ValidationPipe({ transform: true })) request: AuthWhitelistMember): Promise<string> {
     return await this.authService.authWhitelistMember(request);
   }
 }
