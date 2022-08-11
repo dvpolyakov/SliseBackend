@@ -71,6 +71,7 @@ export class TokenProcessorService {
       // }));
 
       if (!(fetchedTokens.length > 0)) {
+        this.logger.debug(`no tokens for ${whitelistMember.address}`);
         await this.prisma.whitelistMember.update({
           where: {
             id: whitelistMember.id
@@ -78,6 +79,16 @@ export class TokenProcessorService {
           data: {
             tokenProcessed: false,
             tokenProcessedAttemps: whitelistMember.tokenProcessedAttemps + 1
+          }
+        })
+      }
+      else {
+        await this.prisma.whitelistMember.update({
+          where: {
+            id: whitelistMember.id
+          },
+          data: {
+            tokenProcessed: true,
           }
         })
       }

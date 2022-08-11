@@ -24,7 +24,7 @@ import { WhiteListPreviewResponse } from './responses/whitelist-preview-response
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
 import {
-  MutualHoldingsResponse,
+  MutualHoldingsResponse, TargetingResponse,
   TopHoldersDashboardResponse,
   WhitelistStatisticsResponse
 } from './models/whitelist-statistics-response';
@@ -39,8 +39,8 @@ export class AnalyticsController {
   }
 
   @Get('test')
-  async testEndpoint() {
-    return await this.analyticsService.test();
+  async testEndpoint(@Query('id') id: string) {
+    return await this.analyticsService.test(id);
   }
 
   @UseGuards(AuthGuard)
@@ -70,6 +70,20 @@ export class AnalyticsController {
   @UseInterceptors(TransformInterceptor)
   async whitelistSettings(@Query('whitelistId') whitelistId: string, @Req() requestContext: any): Promise<WhitelistSettingsResponse> {
     return await this.analyticsService.getWhitelistSettings(whitelistId, requestContext.user as JwtPayload);
+  }
+
+  @Get('getTargets')
+  @UseInterceptors(TransformInterceptor)
+  async getTargets(@Query('vector') vector: number): Promise<any> {
+    const response = await this.analyticsService.getTargets(vector);
+    return response;
+  }
+
+  @Get('getExport')
+  @UseInterceptors(TransformInterceptor)
+  async getExport(@Query('vector') vector: number): Promise<TargetingResponse> {
+    const response = await this.analyticsService.exportTargets(vector);
+    return response;
   }
 
   @UseGuards(AuthGuard)

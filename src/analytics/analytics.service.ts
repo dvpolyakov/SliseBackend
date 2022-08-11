@@ -5,7 +5,6 @@ import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import { WhitelistInfoRequest } from './requests/whitelist-info-request';
 import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import {
-  AlsoHold,
   BaseStatisticsResponse,
   CollectionInfoResponse,
   MutualHoldingsResponse,
@@ -27,6 +26,7 @@ import { WhitelistSettingsResponse } from './responses/whitelist-settings-respon
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
 import { TokenData } from './models/token-info';
 import { WhitelistResponse } from './responses/whitelist-response';
+import { targetingHolders } from '../common/targeting-holders';
 
 const CACHE_EXPRIRE = 60 * 10;
 const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
@@ -50,7 +50,6 @@ export class AnalyticsService {
     @InjectRedis() private readonly redis: Redis,
     private readonly prisma: PrismaService,
     private readonly httpService: HttpService,
-    /*  @InjectQueue('waitlist') private readonly holdersQueue: Queue,*/
     private readonly storage: PersistentStorageService,
     private readonly blockchainService: BlockchainService,
     private readonly integrationService: IntegraionService,
@@ -64,23 +63,40 @@ export class AnalyticsService {
     this.hashMap = new Map<string, string>();
   }
 
-  public async test(): Promise<any> {
-    const a = await this.blockchainService.test();
-    return a;
+  public async test(id: string): Promise<any> {
+    await this.prisma.whitelistMemberInfo.create({
+
+      data: {
+
+        discord: null,
+        twitter: null,
+        twitterFollowers: null,
+        whitelistMemberId: id
+      }
+
+    });
   }
 
-  public async getTargets(vector: number): Promise<number> {
-    const result = await this.prisma.$queryRaw<any>`select count(*) from "TargetingHolders" where vector <= cast(${vector}::text as double precision)`;
-    return result[0].count;
+  public async getTargets(vector: number): Promise<any> {
+    const result = targetingHolders.filter(holder => {
+      return holder.vector < vector;
+    });
+    return {
+      total: result.length
+    }
   }
 
   public async exportTargets(vector: number): Promise<TargetingResponse> {
-    const result = await this.prisma.$queryRaw<any>`select address from "TargetingHolders" 
-    inner join "TokenHolder" TH on TH.id = "TargetingHolders"."holderId" 
-    where vector <= cast(${vector}::text as double precision)`;
+    const result = targetingHolders.filter(holder => {
+      return holder.vector < vector;
+    });
+
+    const res = result.map((res) => {
+      return res['address'];
+    })
 
     return {
-      address: result
+      address: res
     };
   }
 
@@ -88,18 +104,35 @@ export class AnalyticsService {
     const whitelists = await this.prisma.whitelist.findMany({
       where: {
         ownerId: owner.address
+      },
+      include: {
+        whitelistInfo: true
       }
     });
     return whitelists.map((wl) => {
       return {
         id: wl.id,
         name: wl.name,
-        networkType: mapTokenChainType(wl.chainType)
+        networkType: mapTokenChainType(wl.chainType),
+        logo: wl.whitelistInfo.logo
       }
     });
   }
 
+  /*  private idMapper(whitelistId: string): any {
+      let wl;
+      switch (whitelistId) {
+        case '1':
+          wl = JSON.parse(IKIGAI);
+          break;
+        default:
+          break;
+      }
+      return wl;
+    }*/
+
   public async getWhitelistStatistics(whitelistId: string, owner: JwtPayload): Promise<WhitelistStatisticsResponse> {
+    this.logger.debug(`whitelists statistics ${whitelistId}`);
     const whitelist = await this.prisma.whitelist.findUnique({
       where: {
         id: whitelistId
@@ -133,14 +166,14 @@ export class AnalyticsService {
         await this.redis.set(`${whitelistId} mutualHoldings`, JSON.stringify(mutualHoldings), 'EX', CACHE_EXPRIRE);
       }
 
-      const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
+     const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
       let topHoldersDashboard: TopHoldersDashboardResponse;
-      if (existTopHolders)
+       if (existTopHolders)
         topHoldersDashboard = JSON.parse(existTopHolders);
       else
         topHoldersDashboard = {
           topHolders: await this.topHolders(whitelistId),
-          bots: 10,
+          bots: baseStatistics.bots,
           bluechipHolders: baseStatistics.bluechipHolders,
           whales: baseStatistics.whales,
           size: baseStatistics.whitelistSize
@@ -151,7 +184,7 @@ export class AnalyticsService {
       }
 
       const response: WhitelistStatisticsResponse = {
-        bots: 10,
+        bots: baseStatistics.bots,
         discordInfo: discordInfo,
         twitterFollowersCount: twitterFollowersCount,
         bluechipHolders: baseStatistics.bluechipHolders,
@@ -204,7 +237,7 @@ export class AnalyticsService {
       const baseStatistics = await this.baseWhitelistStatistics(whitelistId);
       topHoldersDashboard = {
         topHolders: await this.topHolders(whitelistId),
-        bots: 10,
+        bots: baseStatistics.bots,
         bluechipHolders: baseStatistics.bluechipHolders,
         whales: baseStatistics.whales,
         size: baseStatistics.whitelistSize
@@ -414,16 +447,27 @@ export class AnalyticsService {
     const mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
         select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
         inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
-        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" <> ${ENS_ADDRESS}
+        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" not in (${ENS_ADDRESS},'0x5da829cA23fE1Dd973421E8574aE05093caB924c')
         group by "Token"."contractAddress", "Token"."contractName"
         order by totalHoldings desc
         limit ${QUERY_LIMIT};`;
     await Promise.all(mutualHoldings.map(async (holding) => {
-      const token = await this.prisma.token.findFirst({
+      let token = await this.prisma.token.findFirst({
         where: {
-          contractAddress: holding.address
-        }
+          contractAddress: holding.address,
+          totalSupply: {
+            not: null
+          }
+        },
+
       });
+      if (!token) {
+        token = await this.prisma.token.findFirst({
+          where: {
+            contractAddress: holding.address
+          },
+        });
+      }
       const balances: TokenData[] = JSON.parse(token.items.toString());
       const logo = token.logo ?? balances[0]?.image;
       holding.holdings = {
@@ -453,18 +497,21 @@ export class AnalyticsService {
   }
 
   private async topHolders(whitelistId: string): Promise<TopHoldersResponse[]> {
+    const currentEthPrice = +(await this.redis.get('ethUsdPrice'));
     const topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`
-        select "WhitelistMember".id, "WhitelistMember".address, AB."usdBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts from "WhitelistMember"
+        select DISTINCT "WhitelistMember".id, "WhitelistMember".address, AB."tokenBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts, WMI.discord, WMI.twitter, WMI."twitterFollowers" from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
-        where "WhitelistMember"."whitelistId" = ${whitelistId} 
-        order by AB."usdBalance" desc 
+        inner join "WhitelistMemberInfo" WMI on "WhitelistMember".id = WMI."whitelistMemberId"
+        where "WhitelistMember"."whitelistId" = ${whitelistId}  and "WhitelistMember"."totalTokens" > cast(${0}::text as integer)
+        order by portfolio desc 
         limit ${QUERY_LIMIT};`;
 
     let initPercent = 100;
     let initValue: number;
 
     await Promise.all(topHolders.map(async (holder) => {
-      if (holder.portfolio >= 2000000) {
+      holder.portfolio = holder.portfolio * currentEthPrice;
+      if (holder.portfolio >= 2_000_000) {
         holder.label = 'whale';
       } else {
         holder.label = 'mixed';
@@ -481,17 +528,25 @@ export class AnalyticsService {
       const tokens = await this.prisma.token.findMany({
         where: {
           whitelistMemberId: holder.id,
-          logo: {
-            not: null
-          }
         },
         take: 3,
       });
-      const collections: CollectionInfoResponse[] = tokens.map((token) => {
+      let collections: CollectionInfoResponse[] = tokens.map((token) => {
+        const balances: TokenData[] = JSON.parse(token.items.toString());
+        const logo = token.logo ?? balances[0]?.image;
         return {
-          logo: token.logo
+          logo: logo
         }
       });
+
+      if(collections.length < 3) {
+        let nfts: TokenData[] = JSON.parse(tokens[0].items.toString());
+        collections = nfts.slice(0,3).map((nft) => {
+          return {
+            logo: nft.image
+          }
+        })
+      }
       holder.alsoHold = {
         total: holder.nfts - tokens.length,
         collectionInfo: collections
@@ -509,12 +564,16 @@ export class AnalyticsService {
         holder.percent = ((holder.avgNFTPrice / initValue) * initPercent);
       }
     });
+
+    topHolders.sort((a, b) => {
+      return b.portfolio - a.portfolio;
+    });
     return topHolders;
   }
 
   private async baseWhitelistStatistics(whitelistId: string): Promise<BaseStatisticsResponse> {
     //TODO: cache this variables
-    const [whales, bluechips, whitelistSize] = await Promise.all([
+    const [whales, bluechips, whitelistSize, bots] = await Promise.all([
       await this.prisma.$queryRaw<number>`
         select count(*) from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
@@ -526,13 +585,30 @@ export class AnalyticsService {
         where: {
           whitelistId: whitelistId
         }
+      }),
+      await this.prisma.whitelistMember.count({
+        where: {
+          whitelistId: whitelistId,
+          totalTokens: {
+            equals: 0
+          },
+          tokenProcessed: true,
+          AccountBalance: {
+            some: {
+              usdBalance: {
+                gt: 0
+              }
+            }
+          }
+        }
       })
     ]);
 
     return {
       bluechipHolders: bluechips[0].count,
       whales: whales[0].count,
-      whitelistSize: whitelistSize
+      whitelistSize: whitelistSize,
+      bots: bots
     }
   }
 }

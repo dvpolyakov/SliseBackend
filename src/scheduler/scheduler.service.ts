@@ -3,8 +3,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
-import { mapTokenType } from '../common/utils/token-mapper';
+import { mapTokenChainType, mapTokenType } from '../common/utils/token-mapper';
 import { BigInt } from 'postgres';
+import { ETH_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
+import { InjectQueue } from '@nestjs/bull';
+import { Queue } from 'bull';
 
 
 @Injectable()
@@ -12,7 +15,8 @@ export class SchedulerService {
   constructor(
     @InjectRedis() private readonly redis: Redis,
     private readonly analyticsService: AnalyticsService,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    @InjectQueue('whitelist') private readonly holdersQueue: Queue,
   ) {
   }
 
@@ -29,6 +33,33 @@ export class SchedulerService {
   //   }));
   //   this.logger.debug("holders saved successfully!");
   // }
+
+  @Cron(CronExpression.EVERY_10_MINUTES)
+  async handleFailedTokens() {
+    this.logger.debug(`re-processing whitelistMembers started`);
+    const wlMembers = await this.prisma.whitelistMember.findMany({
+      where: {
+        tokenProcessed: false,
+        tokenProcessedAttemps: {
+          lt: 4
+        }
+      },
+      take: 5
+    });
+    this.logger.debug(`re-processing whitelistMembers count ${wlMembers.length}`);
+    await Promise.all(wlMembers.map(async (member) => {
+      const jobRequest = {
+        whitelistId: member.whitelistId,
+        address: member.address,
+        networkType: 'Ethereum',
+        whitelistMemberId: member.id
+      }
+      const job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
+        jobRequest
+      });
+      this.logger.debug(`re-processing whitelistMember ${member.address}`);
+    }));
+  }
 
   //@Cron(CronExpression.EVERY_10_SECONDS)
   // async processTokens() {

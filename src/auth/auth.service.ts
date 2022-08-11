@@ -74,6 +74,13 @@ export class AuthService{
         totalTokens: 0,
         whitelistId: existWhitelist.whitelistId,
         tokenProcessedAttemps: 0,
+        WhitelistMemberInfo: {
+          create: {
+            discord: null,
+            twitter: null,
+            twitterFollowers: null
+          }
+        }
       }
     });
     this.logger.debug(`Saved whitelist member ${whitelistMember.address} in whitelist ${whitelistMember.whitelistId}`);
@@ -138,6 +145,7 @@ export class AuthService{
     return {
       expiresIn,
       accessToken,
+      chainType: userModel.chainType
     };
   }
 }

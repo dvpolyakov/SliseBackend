@@ -81,6 +81,7 @@ export class BaseStatisticsResponse {
   whitelistSize: number;
   bluechipHolders: number;
   whales: number;
+  bots: number;
 }
 
 export class TargetingResponse {
