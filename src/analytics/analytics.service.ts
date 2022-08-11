@@ -166,9 +166,9 @@ export class AnalyticsService {
         await this.redis.set(`${whitelistId} mutualHoldings`, JSON.stringify(mutualHoldings), 'EX', CACHE_EXPRIRE);
       }
 
-     const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
+      const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
       let topHoldersDashboard: TopHoldersDashboardResponse;
-       if (existTopHolders)
+      if (existTopHolders)
         topHoldersDashboard = JSON.parse(existTopHolders);
       else
         topHoldersDashboard = {
@@ -539,9 +539,9 @@ export class AnalyticsService {
         }
       });
 
-      if(collections.length < 3) {
+      if (collections.length < 3) {
         let nfts: TokenData[] = JSON.parse(tokens[0].items.toString());
-        collections = nfts.slice(0,3).map((nft) => {
+        collections = nfts.slice(0, 3).map((nft) => {
           return {
             logo: nft.image
           }
