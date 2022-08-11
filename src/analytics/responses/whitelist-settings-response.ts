@@ -5,4 +5,5 @@ export class WhitelistSettingsResponse {
   discordVerification: boolean;
   minWalletBalance: number;
   totalSize: number;
+  whitelistName: string;
 }

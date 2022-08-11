@@ -383,6 +383,7 @@ export class AnalyticsService {
       minTwitterFollowers: whitelist.settings.minTwitterFollowers,
       registrationActive: whitelist.settings.registrationActive,
       twitterVerification: whitelist.settings.twitterVerification,
+      whitelistName: whitelist.name,
     }
   }
 
