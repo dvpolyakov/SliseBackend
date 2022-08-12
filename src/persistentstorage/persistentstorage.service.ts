@@ -16,6 +16,7 @@ export class PersistentStorageService {
       Bucket: bucket,
       Key: String(name),
       Body: file,
+
     };
     const data = await s3.upload(params).promise()
       .then((res) => {
@@ -28,11 +29,27 @@ export class PersistentStorageService {
     return data;
   }
 
+  public async uploadImage(file): Promise<string> {
+    const filename = `public/${file.originalname}`;
+    const bucketS3 = 'bucketeer-97d78e08-2ff3-4666-a58b-8bb699a71923';
+    const data = await this.uploadS3(file.buffer, bucketS3, filename);
+    const url = `https://bucketeer-97d78e08-2ff3-4666-a58b-8bb699a71923.s3.amazonaws.com/${data.key}`;
+    // const s3 = PersistentStorageService.getS3();
+    // const url = await s3.getSignedUrlPromise('putObject',{
+    //   Bucket: 'bucketeer-97d78e08-2ff3-4666-a58b-8bb699a71923',
+    //   Key: `public/${data.Key}`,
+    //   ACL: 'public-read',
+    //   ContentType: file.mimetype,
+    // });
+    return url;
+  }
+
   public async getFile(key: string): Promise<any> {
     const s3 = PersistentStorageService.getS3();
     const params = {
       Bucket: 'bucketeer-97d78e08-2ff3-4666-a58b-8bb699a71923',
       Key: String(key),
+
     };
     const file = await s3.getObject(params).promise();
     return file;

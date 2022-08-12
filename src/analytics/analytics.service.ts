@@ -27,6 +27,7 @@ import { TokenData } from './models/token-info';
 import { WhitelistResponse } from './responses/whitelist-response';
 import { targetingHolders } from '../common/targeting-holders';
 import { makeRandomWord } from '../common/utils/hashmaker';
+import { ProjectInfoRequest, ProjectInfoResponse } from './requests/project-info-request';
 
 const CACHE_EXPRIRE = 60 * 10;
 const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
@@ -292,9 +293,7 @@ export class AnalyticsService {
             discordVerification: false,
             minTwitterFollowers: 0,
             minWalletBalance: 0,
-            totalSize: 10000,
-            registrationActive: false,
-            twitterVerification: false
+            twitterVerification: false,
           }
         },
         whitelistInfo: {
@@ -305,10 +304,8 @@ export class AnalyticsService {
             logo: null,
             mintDate: null,
             mintPrice: null,
-            registrationEndDate: null,
             twitter: null,
             twitterFollowers: null,
-            urlSlug: null,
             url: null,
           }
         },
@@ -355,11 +352,99 @@ export class AnalyticsService {
       logo: whitelistLink.whitelist.whitelistInfo.logo,
       mintDate: whitelistLink.whitelist.whitelistInfo.mintDate,
       mintPrice: whitelistLink.whitelist.whitelistInfo.mintPrice,
-      registrationEndDate: whitelistLink.whitelist.whitelistInfo.registrationEndDate,
       twitter: whitelistLink.whitelist.whitelistInfo.twitter,
       twitterFollowers: whitelistLink.whitelist.whitelistInfo.twitterFollowers,
-      urlSlug: whitelistLink.whitelist.whitelistInfo.urlSlug,
       url: whitelistLink.whitelist.whitelistInfo.url,
+    }
+  }
+
+  public async getWhitelistInfo(whitelistId: string, owner: JwtPayload): Promise<ProjectInfoResponse> {
+    const whitelist = await this.prisma.whitelist.findUnique({
+      where: {
+        id: whitelistId
+      },
+      include: {
+        whitelistInfo: true
+      }
+    });
+
+    if (whitelist?.ownerId !== owner.address)
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+
+    return {
+      description: whitelist.whitelistInfo.description,
+      discord: whitelist.whitelistInfo.discord,
+      blockchain: mapTokenChainType(whitelist.chainType),
+      mintPrice: whitelist.whitelistInfo.mintPrice,
+      collectionName: whitelist.name,
+      totalSupply: whitelist.whitelistInfo.totalSupply,
+      registrationActive: whitelist.whitelistInfo.registrationActive,
+      twitter: whitelist.whitelistInfo.twitter,
+      mintDate: whitelist.whitelistInfo.mintDate,
+      logo: whitelist.whitelistInfo.logo
+    }
+  }
+
+  public async updateWhitelistInfo(whitelistId: string, request: ProjectInfoRequest, owner: JwtPayload, file?: Express.Multer.File): Promise<ProjectInfoResponse> {
+    const whitelist = await this.prisma.whitelist.findUnique({
+      where: {
+        id: whitelistId
+      },
+      include: {
+        whitelistInfo: true
+      }
+    });
+
+    if (whitelist?.ownerId !== owner.address)
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
+
+    let uploadedFile;
+    if(file){
+      try {
+        uploadedFile = await this.storage.uploadImage(file);
+      } catch (e) {
+        this.logger.debug(`error uploading file ${e.toString()}`)
+      }
+    }
+
+    const updatedWlInfo = await this.prisma.whitelistInfo.update({
+      where: {
+        whitelistId: whitelistId
+      },
+      data: {
+        logo: uploadedFile || null,
+        twitter: request.twitter || null,
+        discord: request.discord || null,
+        mintDate: new Date(request.mintDate) || null,
+        mintPrice: +request.mintPrice || null,
+        description: request.description || null,
+        totalSupply: +request.totalSupply || null,
+        registrationActive: request.registrationActive.toString() === 'true' ? true : false
+      },
+    });
+
+    const updatedWl = await this.prisma.whitelist.update({
+      where: {
+        id: whitelistId
+      },
+      data: {
+        name: request.collectionName,
+        chainType: mapChainType(request.blockchain),
+
+      }
+    });
+
+    return {
+      description: updatedWlInfo.description,
+      discord: updatedWlInfo.discord,
+      blockchain: mapTokenChainType(updatedWl.chainType),
+      mintPrice: updatedWlInfo.mintPrice,
+      collectionName: updatedWl.name,
+      totalSupply: updatedWlInfo.totalSupply,
+      registrationActive: updatedWlInfo.registrationActive,
+      twitter: updatedWlInfo.twitter,
+      mintDate: updatedWlInfo.mintDate,
+      logo: updatedWlInfo.logo
     }
   }
 
@@ -379,11 +464,8 @@ export class AnalyticsService {
     return {
       discordVerification: whitelist.settings.discordVerification,
       minWalletBalance: whitelist.settings.minWalletBalance,
-      totalSize: whitelist.settings.totalSize,
       minTwitterFollowers: whitelist.settings.minTwitterFollowers,
-      registrationActive: whitelist.settings.registrationActive,
       twitterVerification: whitelist.settings.twitterVerification,
-      whitelistName: whitelist.name,
     }
   }
 
@@ -407,9 +489,7 @@ export class AnalyticsService {
       data: {
         discordVerification: request.discordVerification,
         minWalletBalance: request.minWalletBalance,
-        totalSize: request.totalSize,
         minTwitterFollowers: request.minTwitterFollowers,
-        registrationActive: request.registrationActive,
         twitterVerification: request.twitterVerification,
       }
     });
@@ -417,9 +497,7 @@ export class AnalyticsService {
     return {
       discordVerification: updatedWhitelistSettings.discordVerification,
       minWalletBalance: updatedWhitelistSettings.minWalletBalance,
-      totalSize: updatedWhitelistSettings.totalSize,
       minTwitterFollowers: updatedWhitelistSettings.minTwitterFollowers,
-      registrationActive: updatedWhitelistSettings.registrationActive,
       twitterVerification: updatedWhitelistSettings.twitterVerification,
     }
   }

@@ -68,7 +68,7 @@ export class AuthService {
       include: {
         whitelist: {
           include: {
-            settings: true
+            whitelistInfo: true
           }
         }
       }
@@ -76,7 +76,7 @@ export class AuthService {
     if (!existWhitelist)
       throw new BadRequestException(`Whitelist not found`);
 
-    if (existWhitelist.whitelist.settings.registrationActive !== true)
+    if (existWhitelist.whitelist.whitelistInfo.registrationActive !== true)
       throw new BadRequestException('Registration not active');
 
     const isRegistered = await this.prisma.whitelistMember.count({

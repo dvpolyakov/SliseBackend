@@ -6,7 +6,7 @@ import {
   Post,
   Put,
   Query,
-  Req,
+  Req, UploadedFile,
   UseGuards,
   UseInterceptors,
   ValidationPipe
@@ -29,6 +29,8 @@ import {
   WhitelistStatisticsResponse
 } from './models/whitelist-statistics-response';
 import { WhitelistResponse } from './responses/whitelist-response';
+import { ProjectInfoRequest, ProjectInfoResponse } from './requests/project-info-request';
+import { FileInterceptor } from '@nestjs/platform-express';
 
 @ApiTags('Slice')
 @UseInterceptors(SentryInterceptor, TransformInterceptor)
@@ -62,7 +64,7 @@ export class AnalyticsController {
   }
 
   @Get('collection/:link')
-  async whitelistInfo(@Param('link') link: string): Promise<WhiteListPreviewResponse> {
+  async collectionInfo(@Param('link') link: string): Promise<WhiteListPreviewResponse> {
     return await this.analyticsService.getWhitelistInfoByLink(link);
   }
 
@@ -70,6 +72,19 @@ export class AnalyticsController {
   @Get('whitelistSettings')
   async whitelistSettings(@Query('whitelistId') whitelistId: string, @Req() requestContext: any): Promise<WhitelistSettingsResponse> {
     return await this.analyticsService.getWhitelistSettings(whitelistId, requestContext.user as JwtPayload);
+  }
+
+  @UseGuards(AuthGuard)
+  @Get('whitelistInfo')
+  async whitelistProjectInfo(@Query('whitelistId') whitelistId: string, @Req() requestContext: any): Promise<ProjectInfoResponse> {
+    return await this.analyticsService.getWhitelistInfo(whitelistId, requestContext.user as JwtPayload);
+  }
+
+  @UseGuards(AuthGuard)
+  @UseInterceptors(FileInterceptor('file'))
+  @Put('whitelistInfo/:whitelistId')
+  async updateProjectInfo(@Param('whitelistId') whitelistId: string, @Body() whitelist: ProjectInfoRequest, @Req() requestContext: any, @UploadedFile() file?: Express.Multer.File): Promise<ProjectInfoResponse> {
+    return await this.analyticsService.updateWhitelistInfo(whitelistId, whitelist, requestContext.user as JwtPayload, file);
   }
 
   @Get('getTargets')

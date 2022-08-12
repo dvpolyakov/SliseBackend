@@ -29,31 +29,29 @@ model Whitelist {
 }
 
 model WhitelistInfo {
-  id                  String    @id @default(uuid())
-  logo                String?
-  urlSlug             String?
-  mintPrice           Float?
-  mintDate            DateTime?
-  registrationEndDate DateTime?
-  url                 String?
-  twitter             String?
-  twitterFollowers    Int?
-  discord             String?
-  discordMembers      Int?
-  description         String?
-  whitelist           Whitelist @relation(fields: [whitelistId], references: [id])
-  whitelistId         String    @unique
-  createdAt           DateTime  @default(now())
+  id                 String    @id @default(uuid())
+  logo               String?
+  mintPrice          Float?
+  mintDate           DateTime?
+  url                String?
+  twitter            String?
+  twitterFollowers   Int?
+  discord            String?
+  discordMembers     Int?
+  description        String?
+  totalSupply        Int @default(1000)
+  registrationActive Boolean @default(false)
+  whitelist          Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId        String    @unique
+  createdAt          DateTime  @default(now())
 }
 
 model RegistrationSettings {
   id                  String    @id @default(uuid())
-  registrationActive  Boolean
   twitterVerification Boolean
   minTwitterFollowers Int
   discordVerification Boolean
   minWalletBalance    Float
-  totalSize           Int
   whitelist           Whitelist @relation(fields: [whitelistId], references: [id])
   whitelistId         String    @unique
 }
