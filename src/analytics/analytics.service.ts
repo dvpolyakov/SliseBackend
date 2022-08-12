@@ -278,8 +278,8 @@ export class AnalyticsService {
 
   public async storeClearWhitelist(whitelistRequest: WhitelistInfoRequest, owner: JwtPayload): Promise<WhitelistInfoResponse> {
     this.logger.debug(`whitelist: ${whitelistRequest.collectionName} received`);
-    const addedSymbols = makeRandomWord(4);
     const collectionName = this.splitCollectionName(whitelistRequest.collectionName);
+    const addedSymbols = makeRandomWord(4);
     const link = `${collectionName}-${addedSymbols}`;
 
     const whitelist = await this.prisma.whitelist.create({
@@ -364,7 +364,8 @@ export class AnalyticsService {
         id: whitelistId
       },
       include: {
-        whitelistInfo: true
+        whitelistInfo: true,
+        whitelistLink: true
       }
     });
 
@@ -381,7 +382,8 @@ export class AnalyticsService {
       registrationActive: whitelist.whitelistInfo.registrationActive,
       twitter: whitelist.whitelistInfo.twitter,
       mintDate: whitelist.whitelistInfo.mintDate,
-      logo: whitelist.whitelistInfo.logo
+      logo: whitelist.whitelistInfo.logo,
+      link: whitelist.whitelistLink.link
     }
   }
 
@@ -391,7 +393,8 @@ export class AnalyticsService {
         id: whitelistId
       },
       include: {
-        whitelistInfo: true
+        whitelistInfo: true,
+        whitelistLink: true
       }
     });
 
@@ -399,40 +402,62 @@ export class AnalyticsService {
       throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     let uploadedFile;
-    if(file){
+    if (file) {
       try {
         uploadedFile = await this.storage.uploadImage(file);
       } catch (e) {
         this.logger.debug(`error uploading file ${e.toString()}`)
       }
     }
+    let uploadModel = {
+      twitter: request.twitter || null,
+      discord: request.discord || null,
+      mintDate: new Date(request.mintDate) || null,
+      mintPrice: +request.mintPrice || null,
+      description: request.description || null,
+      totalSupply: +request.totalSupply || null,
+      registrationActive: request.registrationActive.toString() === 'true'
+    }
+
+    if (uploadedFile)
+      uploadModel['logo'] = uploadedFile;
 
     const updatedWlInfo = await this.prisma.whitelistInfo.update({
       where: {
         whitelistId: whitelistId
       },
-      data: {
-        logo: uploadedFile || null,
-        twitter: request.twitter || null,
-        discord: request.discord || null,
-        mintDate: new Date(request.mintDate) || null,
-        mintPrice: +request.mintPrice || null,
-        description: request.description || null,
-        totalSupply: +request.totalSupply || null,
-        registrationActive: request.registrationActive.toString() === 'true' ? true : false
-      },
+      data: uploadModel
     });
+    let link: string;
+    if(whitelist.name !== request.collectionName){
+      await this.prisma.whitelistLink.delete({
+        where: {
+          link: whitelist.whitelistLink.link
+        }
+      });
+      const newCollectionName = this.splitCollectionName(request.collectionName);
+      const addedSymbols = makeRandomWord(4);
+      link = `${newCollectionName || makeRandomWord(3)}-${addedSymbols}`;
+      await this.prisma.whitelistLink.create({
+        data:{
+          whitelistId: whitelist.id,
+          link: link
+        }
+      });
+    }
+
+    link = link || whitelist.whitelistLink.link
 
     const updatedWl = await this.prisma.whitelist.update({
-      where: {
-        id: whitelistId
-      },
-      data: {
-        name: request.collectionName,
-        chainType: mapChainType(request.blockchain),
-
+        where: {
+          id: whitelistId
+        },
+        data: {
+          name: request.collectionName,
+          chainType: mapChainType(request.blockchain),
+        }
       }
-    });
+    );
 
     return {
       description: updatedWlInfo.description,
@@ -444,7 +469,8 @@ export class AnalyticsService {
       registrationActive: updatedWlInfo.registrationActive,
       twitter: updatedWlInfo.twitter,
       mintDate: updatedWlInfo.mintDate,
-      logo: updatedWlInfo.logo
+      logo: updatedWlInfo.logo,
+      link: link
     }
   }
 

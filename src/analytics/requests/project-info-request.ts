@@ -28,4 +28,5 @@ export class ProjectInfoResponse {
   description: string;
   logo: string;
   blockchain: NetworkType;
+  link: string;
 }
