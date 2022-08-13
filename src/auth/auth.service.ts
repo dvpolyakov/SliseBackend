@@ -55,9 +55,13 @@ export class AuthService {
       const wl = await this.prisma.whitelist.findFirst({
         where: {
           ownerId: user.address
+        },
+        include: {
+          whitelistLink: true
         }
       });
       jwtTokenModelExist.whitelistId = wl.id;
+      jwtTokenModelExist.publicLink = wl.whitelistLink.link;
       return jwtTokenModelExist;
     }
     catch (e) {
