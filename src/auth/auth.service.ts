@@ -31,32 +31,38 @@ export class AuthService {
   }
 
   public async authUser(request: AuthUserRequest): Promise<JwtTokenModel> {
-    const user = await this.userService.findOne(request);
-    if (!user) {
-      const createdUser = await this.userService.createUser(request);
-      const wl = await this.analyticsService.storeClearWhitelist({
-          networkType: request.networkType,
-          collectionName: `UnnamedWhitelist-${makeRandomWord(3)}`,
-        },
-        {
-          address: request.address,
-          networkType: request.networkType
-        });
-      //return createdUser.address;
-      let jwtTokenModel = this._createToken(createdUser);
-      jwtTokenModel.whitelistId = wl.id;
-      jwtTokenModel.publicLink = wl.publicLink;
-      return jwtTokenModel;
-    }
-    //return user.address;
-    let jwtTokenModelExist = this._createToken(user);
-    const wl = await this.prisma.whitelist.findFirst({
-      where: {
-        ownerId: user.address
+    try{
+      this.logger.debug(`trying to authorize user ${request.address}`);
+      const user = await this.userService.findOne(request);
+      if (!user) {
+        const createdUser = await this.userService.createUser(request);
+        const wl = await this.analyticsService.storeClearWhitelist({
+            networkType: request.networkType,
+            collectionName: `UnnamedWhitelist-${makeRandomWord(3)}`,
+          },
+          {
+            address: request.address,
+            networkType: request.networkType
+          });
+        //return createdUser.address;
+        let jwtTokenModel = this._createToken(createdUser);
+        jwtTokenModel.whitelistId = wl.id;
+        jwtTokenModel.publicLink = wl.publicLink;
+        return jwtTokenModel;
       }
-    });
-    jwtTokenModelExist.whitelistId = wl.id;
-    return jwtTokenModelExist;
+      //return user.address;
+      let jwtTokenModelExist = this._createToken(user);
+      const wl = await this.prisma.whitelist.findFirst({
+        where: {
+          ownerId: user.address
+        }
+      });
+      jwtTokenModelExist.whitelistId = wl.id;
+      return jwtTokenModelExist;
+    }
+    catch (e) {
+      this.logger.debug(`error authorization user ${request.address}`);
+    }
   }
 
   public async authWhitelistMember(request: AuthWhitelistMember): Promise<string> {
