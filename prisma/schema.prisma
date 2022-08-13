@@ -39,21 +39,23 @@ model WhitelistInfo {
   discord            String?
   discordMembers     Int?
   description        String?
-  totalSupply        Int @default(1000)
-  registrationActive Boolean @default(false)
+  totalSupply        Int       @default(1000)
+  registrationActive Boolean   @default(false)
   whitelist          Whitelist @relation(fields: [whitelistId], references: [id])
   whitelistId        String    @unique
   createdAt          DateTime  @default(now())
 }
 
 model RegistrationSettings {
-  id                  String    @id @default(uuid())
-  twitterVerification Boolean
-  minTwitterFollowers Int
-  discordVerification Boolean
-  minWalletBalance    Float
-  whitelist           Whitelist @relation(fields: [whitelistId], references: [id])
-  whitelistId         String    @unique
+  id                         String    @id @default(uuid())
+  twitterVerification        Boolean
+  minTwitterFollowers        Int
+  requireMinTwitterFollowers Boolean   @default(false)
+  discordVerification        Boolean
+  minWalletBalance           Float
+  balanceVerification        Boolean   @default(false)
+  whitelist                  Whitelist @relation(fields: [whitelistId], references: [id])
+  whitelistId                String    @unique
 }
 
 model WhitelistLink {

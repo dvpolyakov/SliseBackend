@@ -3,4 +3,6 @@ export class WhitelistSettingsResponse {
   minTwitterFollowers: number;
   discordVerification: boolean;
   minWalletBalance: number;
+  balanceVerification: boolean;
+  requireMinTwitterFollowers: boolean;
 }

@@ -142,7 +142,7 @@ export class AnalyticsService {
       }
     });
     if (whitelist?.ownerId !== owner.address)
-      throw new HttpException('Whitelist not found', HttpStatus.FORBIDDEN);
+      throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     const existWhitelistStatistics = await this.redis.get(`${whitelistId} whitelistStatistics`);
     if (existWhitelistStatistics) {
@@ -492,6 +492,8 @@ export class AnalyticsService {
       minWalletBalance: whitelist.settings.minWalletBalance,
       minTwitterFollowers: whitelist.settings.minTwitterFollowers,
       twitterVerification: whitelist.settings.twitterVerification,
+      balanceVerification: whitelist.settings.balanceVerification,
+      requireMinTwitterFollowers: whitelist.settings.requireMinTwitterFollowers
     }
   }
 
@@ -513,10 +515,12 @@ export class AnalyticsService {
         whitelistId: whitelist.id
       },
       data: {
-        discordVerification: request.discordVerification,
+        discordVerification: request.discordVerification.toString() === 'true',
         minWalletBalance: request.minWalletBalance,
         minTwitterFollowers: request.minTwitterFollowers,
-        twitterVerification: request.twitterVerification,
+        twitterVerification: request.twitterVerification.toString() === 'true',
+        balanceVerification: request.balanceVerification,
+        requireMinTwitterFollowers: request.requireMinTwitterFollowers
       }
     });
 
@@ -525,6 +529,8 @@ export class AnalyticsService {
       minWalletBalance: updatedWhitelistSettings.minWalletBalance,
       minTwitterFollowers: updatedWhitelistSettings.minTwitterFollowers,
       twitterVerification: updatedWhitelistSettings.twitterVerification,
+      balanceVerification: whitelist.settings.balanceVerification,
+      requireMinTwitterFollowers: whitelist.settings.requireMinTwitterFollowers
     }
   }
 
@@ -537,61 +543,69 @@ export class AnalyticsService {
   }
 
   private async mutualHoldings(whitelistId: string): Promise<MutualHoldingsResponse[]> {
-    const mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
+    let mutualHoldings: MutualHoldingsResponse[] = [];
+    try{
+      mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
         select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
         inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
         where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" not in (${ENS_ADDRESS},'0x5da829cA23fE1Dd973421E8574aE05093caB924c')
         group by "Token"."contractAddress", "Token"."contractName"
         order by totalHoldings desc
         limit ${QUERY_LIMIT};`;
-    await Promise.all(mutualHoldings.map(async (holding) => {
-      let token = await this.prisma.token.findFirst({
-        where: {
-          contractAddress: holding.address,
-          totalSupply: {
-            not: null
-          }
-        },
-
-      });
-      if (!token) {
-        token = await this.prisma.token.findFirst({
+      await Promise.all(mutualHoldings.map(async (holding) => {
+        let token = await this.prisma.token.findFirst({
           where: {
-            contractAddress: holding.address
+            contractAddress: holding.address,
+            totalSupply: {
+              not: null
+            }
           },
+
         });
-      }
-      const balances: TokenData[] = JSON.parse(token.items.toString());
-      const logo = token.logo ?? balances[0]?.image;
-      holding.holdings = {
-        totalSupply: token.totalSupply ?? token.total_supply ?? 0,
-        logo: logo,
-        floorPrice: token.floorPrice,
-        numOwners: token.numOwners
-      }
-    }));
+        if (!token) {
+          token = await this.prisma.token.findFirst({
+            where: {
+              contractAddress: holding.address
+            },
+          });
+        }
+        const balances: TokenData[] = JSON.parse(token.items.toString());
+        const logo = token.logo ?? balances[0]?.image;
+        holding.holdings = {
+          totalSupply: token.totalSupply ?? token.total_supply ?? 0,
+          logo: logo,
+          floorPrice: token.floorPrice,
+          numOwners: token.numOwners
+        }
+      }));
 
-    mutualHoldings.sort((a, b) => {
-      return b.totalholdings - a.totalholdings;
-    });
+      mutualHoldings.sort((a, b) => {
+        return b.totalholdings - a.totalholdings;
+      });
 
-    let initPercent = 100;
-    let initValue: number;
-    mutualHoldings.map((holding, idx) => {
-      if (idx === 0) {
-        initValue = holding.totalholdings;
-        holding.percent = initPercent;
-      } else {
-        holding.percent = ((holding.totalholdings / initValue) * initPercent);
-      }
-    });
+      let initPercent = 100;
+      let initValue: number;
+      mutualHoldings.map((holding, idx) => {
+        if (idx === 0) {
+          initValue = holding.totalholdings;
+          holding.percent = initPercent;
+        } else {
+          holding.percent = ((holding.totalholdings / initValue) * initPercent);
+        }
+      });
+    }
+    catch (e){
+      this.logger.debug(`error fetching mutual holders for whitelist ${whitelistId}`)
+    }
 
     return mutualHoldings;
   }
 
   private async topHolders(whitelistId: string): Promise<TopHoldersResponse[]> {
     const currentEthPrice = +(await this.redis.get('ethUsdPrice'));
-    const topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`
+    let topHolders: TopHoldersResponse[] = [];
+    try{
+      topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`
         select DISTINCT "WhitelistMember".id, "WhitelistMember".address, AB."tokenBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts, WMI.discord, WMI.twitter, WMI."twitterFollowers" from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
         inner join "WhitelistMemberInfo" WMI on "WhitelistMember".id = WMI."whitelistMemberId"
@@ -599,68 +613,73 @@ export class AnalyticsService {
         order by portfolio desc 
         limit ${QUERY_LIMIT};`;
 
-    let initPercent = 100;
-    let initValue: number;
+      let initPercent = 100;
+      let initValue: number;
 
-    await Promise.all(topHolders.map(async (holder) => {
-      holder.portfolio = holder.portfolio * currentEthPrice;
-      if (holder.portfolio >= 2_000_000) {
-        holder.label = 'whale';
-      } else {
-        holder.label = 'mixed';
-      }
-      holder.avgNFTPrice = holder.portfolio / holder.nfts;
-      if (holder.nfts > 20 && holder.nfts < 30) {
-        holder.holdingTimeLabel = 'mixed'
-      } else if (holder.nfts > 30) {
-        holder.holdingTimeLabel = 'holder'
-      } else {
-        holder.holdingTimeLabel = 'flipper'
-      }
-      holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
-      const tokens = await this.prisma.token.findMany({
-        where: {
-          whitelistMemberId: holder.id,
-        },
-        take: 3,
+      await Promise.all(topHolders.map(async (holder) => {
+        holder.portfolio = holder.portfolio * currentEthPrice;
+        if (holder.portfolio >= 2_000_000) {
+          holder.label = 'whale';
+        } else {
+          holder.label = 'mixed';
+        }
+        holder.avgNFTPrice = holder.portfolio / holder.nfts;
+        if (holder.nfts > 20 && holder.nfts < 30) {
+          holder.holdingTimeLabel = 'mixed'
+        } else if (holder.nfts > 30) {
+          holder.holdingTimeLabel = 'holder'
+        } else {
+          holder.holdingTimeLabel = 'flipper'
+        }
+        holder.tradingVolume = holder.portfolio - holder.avgNFTPrice;
+        const tokens = await this.prisma.token.findMany({
+          where: {
+            whitelistMemberId: holder.id,
+          },
+          take: 3,
+        });
+        let collections: CollectionInfoResponse[] = tokens.map((token) => {
+          const balances: TokenData[] = JSON.parse(token.items.toString());
+          const logo = token.logo ?? balances[0]?.image;
+          return {
+            logo: logo
+          }
+        });
+
+        if (collections.length < 3) {
+          let nfts: TokenData[] = JSON.parse(tokens[0].items.toString());
+          collections = nfts.slice(0, 3).map((nft) => {
+            return {
+              logo: nft.image
+            }
+          })
+        }
+        holder.alsoHold = {
+          total: holder.nfts - tokens.length,
+          collectionInfo: collections
+        };
+      }));
+      topHolders.sort((a, b) => {
+        return b.avgNFTPrice - a.avgNFTPrice;
       });
-      let collections: CollectionInfoResponse[] = tokens.map((token) => {
-        const balances: TokenData[] = JSON.parse(token.items.toString());
-        const logo = token.logo ?? balances[0]?.image;
-        return {
-          logo: logo
+
+      topHolders.map((holder, idx) => {
+        if (idx === 0) {
+          initValue = holder.avgNFTPrice;
+          holder.percent = initPercent;
+        } else {
+          holder.percent = ((holder.avgNFTPrice / initValue) * initPercent);
         }
       });
 
-      if (collections.length < 3) {
-        let nfts: TokenData[] = JSON.parse(tokens[0].items.toString());
-        collections = nfts.slice(0, 3).map((nft) => {
-          return {
-            logo: nft.image
-          }
-        })
-      }
-      holder.alsoHold = {
-        total: holder.nfts - tokens.length,
-        collectionInfo: collections
-      };
-    }));
-    topHolders.sort((a, b) => {
-      return b.avgNFTPrice - a.avgNFTPrice;
-    });
+      topHolders.sort((a, b) => {
+        return b.portfolio - a.portfolio;
+      });
+    }
+    catch (e) {
+      this.logger.debug(`error fetching top holders for whitelist ${whitelistId}`)
+    }
 
-    topHolders.map((holder, idx) => {
-      if (idx === 0) {
-        initValue = holder.avgNFTPrice;
-        holder.percent = initPercent;
-      } else {
-        holder.percent = ((holder.avgNFTPrice / initValue) * initPercent);
-      }
-    });
-
-    topHolders.sort((a, b) => {
-      return b.portfolio - a.portfolio;
-    });
     return topHolders;
   }
 
