@@ -5,4 +5,5 @@ export class WhitelistResponse {
   name: string;
   networkType: NetworkType;
   logo: string;
+  link: string;
 }

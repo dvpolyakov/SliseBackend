@@ -20,7 +20,7 @@ import { mapChainType, mapTokenChainType } from '../common/utils/token-mapper';
 import { WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
-import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
+import { WhitelistPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
 import { TokenData } from './models/token-info';
@@ -106,7 +106,8 @@ export class AnalyticsService {
         ownerId: owner.address
       },
       include: {
-        whitelistInfo: true
+        whitelistInfo: true,
+        whitelistLink: true
       }
     });
     return whitelists.map((wl) => {
@@ -114,7 +115,8 @@ export class AnalyticsService {
         id: wl.id,
         name: wl.name,
         networkType: mapTokenChainType(wl.chainType),
-        logo: wl.whitelistInfo.logo
+        logo: wl.whitelistInfo.logo,
+        link: wl.whitelistLink.link
       }
     });
   }
@@ -292,7 +294,7 @@ export class AnalyticsService {
           create: {
             discordVerification: false,
             minTwitterFollowers: 0,
-            minWalletBalance: 0,
+            minWalletBalance: 0.0,
             twitterVerification: false,
           }
         },
@@ -303,10 +305,11 @@ export class AnalyticsService {
             discordMembers: null,
             logo: null,
             mintDate: null,
-            mintPrice: null,
+            mintPrice: 0.01,
             twitter: null,
             twitterFollowers: null,
             url: null,
+            totalSupply: 10000
           }
         },
         whitelistLink: {
@@ -327,7 +330,7 @@ export class AnalyticsService {
     };
   }
 
-  public async getWhitelistInfoByLink(link: string): Promise<WhiteListPreviewResponse> {
+  public async getWhitelistInfoByLink(link: string): Promise<WhitelistPreviewResponse> {
     const whitelistLink = await this.prisma.whitelistLink.findUnique({
       where: {
         link: link
@@ -335,26 +338,28 @@ export class AnalyticsService {
       include: {
         whitelist: {
           include: {
-            whitelistInfo: true
+            whitelistInfo: true,
+            settings: true
           }
         }
-      }
+      },
     });
 
-    if (!whitelistLink.whitelist.whitelistInfo)
-      throw new HttpException('Whitelist not found', HttpStatus.FORBIDDEN);
+    if (!whitelistLink)
+      throw new HttpException('Whitelist not found', HttpStatus.NOT_FOUND);
 
     return {
       whitelistName: whitelistLink.whitelist.name,
       description: whitelistLink.whitelist.whitelistInfo.description,
       discord: whitelistLink.whitelist.whitelistInfo.discord,
-      discordMembers: whitelistLink.whitelist.whitelistInfo.discordMembers,
       logo: whitelistLink.whitelist.whitelistInfo.logo,
       mintDate: whitelistLink.whitelist.whitelistInfo.mintDate,
       mintPrice: whitelistLink.whitelist.whitelistInfo.mintPrice,
       twitter: whitelistLink.whitelist.whitelistInfo.twitter,
-      twitterFollowers: whitelistLink.whitelist.whitelistInfo.twitterFollowers,
-      url: whitelistLink.whitelist.whitelistInfo.url,
+      blockchain: mapTokenChainType(whitelistLink.whitelist.chainType),
+      registrationActive: whitelistLink.whitelist.whitelistInfo.registrationActive,
+      totalSupply: whitelistLink.whitelist.whitelistInfo.totalSupply,
+      minBalance: whitelistLink.whitelist.settings.minWalletBalance
     }
   }
 

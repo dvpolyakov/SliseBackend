@@ -1,14 +1,15 @@
-export class WhiteListPreviewResponse{
+import { NetworkType } from '../../common/enums/network-type';
+
+export class WhitelistPreviewResponse {
   whitelistName: string;
   logo?: string;
-  urlSlug?: string;
   mintPrice?: number;
   mintDate?: Date;
-  registrationEndDate?: Date
-  url?: string;
+  blockchain: NetworkType;
   twitter?: string;
-  twitterFollowers?: number;
   discord?: string;
-  discordMembers?: number;
   description?: string;
+  registrationActive: boolean;
+  totalSupply: number;
+  minBalance: number;
 }

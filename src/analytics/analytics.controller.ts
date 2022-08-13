@@ -20,7 +20,7 @@ import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import { AuthGuard } from '../common/interceptors/guards.interceptor';
 import { JwtPayload } from '../auth/models/payload';
 import { GenerateLinkRequest } from '../auth/requests/generate-link-request';
-import { WhiteListPreviewResponse } from './responses/whitelist-preview-response';
+import { WhitelistPreviewResponse } from './responses/whitelist-preview-response';
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
 import {
@@ -64,7 +64,7 @@ export class AnalyticsController {
   }
 
   @Get('collection/:link')
-  async collectionInfo(@Param('link') link: string): Promise<WhiteListPreviewResponse> {
+  async collectionInfo(@Param('link') link: string): Promise<WhitelistPreviewResponse> {
     return await this.analyticsService.getWhitelistInfoByLink(link);
   }
 
