@@ -15,6 +15,7 @@ import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { makeRandomWord } from '../common/utils/hashmaker';
+import { IntegraionService } from '../integration/integration.service';
 
 @Injectable()
 export class AuthService {
@@ -26,12 +27,13 @@ export class AuthService {
     private readonly analyticsService: AnalyticsService,
     @InjectQueue('whitelist') private readonly holdersQueue: Queue,
     @InjectRedis() private readonly redis: Redis,
-    private readonly prisma: PrismaService
+    private readonly prisma: PrismaService,
+    private readonly integrationService: IntegraionService,
   ) {
   }
 
   public async authUser(request: AuthUserRequest): Promise<JwtTokenModel> {
-    try{
+    try {
       this.logger.debug(`trying to authorize user ${request.address}`);
       const user = await this.userService.findOne(request);
       if (!user) {
@@ -63,8 +65,7 @@ export class AuthService {
       jwtTokenModelExist.whitelistId = wl.id;
       jwtTokenModelExist.publicLink = wl.whitelistLink.link;
       return jwtTokenModelExist;
-    }
-    catch (e) {
+    } catch (e) {
       this.logger.debug(`error authorization user ${request.address}`);
     }
   }
@@ -107,9 +108,9 @@ export class AuthService {
         tokenProcessedAttemps: 0,
         WhitelistMemberInfo: {
           create: {
-            discord: null,
-            twitter: null,
-            twitterFollowers: null
+            discord: request.discord || null,
+            twitter: request.twitter || null,
+            twitterFollowers: request.twitter === null ? null : await this.integrationService.getTwitterFollowersCount(request.twitter)
           }
         }
       }

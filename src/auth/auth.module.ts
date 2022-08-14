@@ -8,6 +8,7 @@ import { BullModule } from '@nestjs/bull';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { AnalyticsModule } from '../analytics/analytics.module';
+import { IntegrationModule } from '../integration/integration.module';
 
 @Module({
   imports: [
@@ -27,7 +28,8 @@ import { AnalyticsModule } from '../analytics/analytics.module';
       name: 'whitelist',
     }),
     AnalyticsModule,
-    PrismaModule
+    PrismaModule,
+    IntegrationModule
   ],
   providers: [AuthService, JwtStrategy, AuthController],
   exports: [AuthService, PassportModule, JwtModule, AuthController]

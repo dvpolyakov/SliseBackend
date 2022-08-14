@@ -21,4 +21,8 @@ export class AuthWhitelistMember {
   })
   @IsEnum(NetworkType)
   networkType: NetworkType;
+
+  discord?: string;
+
+  twitter?: string;
 }
