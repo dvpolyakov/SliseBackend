@@ -45,6 +45,11 @@ export class AnalyticsController {
     return await this.analyticsService.test(id);
   }
 
+  @Get('twitterFollowersCount')
+  async twitterFollowers(@Query('account') account: string) {
+    return await this.analyticsService.getTwitterFollowersCount(account);
+  }
+
   @UseGuards(AuthGuard)
   @Get('whitelists')
   async whitelists(@Req() requestContext: any): Promise<WhitelistResponse[]> {

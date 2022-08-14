@@ -24,6 +24,22 @@ export class IntegraionService {
     return null;
   }
 
+  public async getTwitterFollowersCountByUsername(username: string): Promise<any> {
+    if (username) {
+      try {
+        const countByApi = await getFollowerCount({
+          type: 'twitter',
+          username: username
+        });
+
+        return countByApi;
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+
   public async getDiscordInfo(link: string): Promise<any> {
     if (link) {
       try {

@@ -100,6 +100,10 @@ export class AnalyticsService {
     };
   }
 
+  public async getTwitterFollowersCount(account: string): Promise<number> {
+    return this.integrationService.getTwitterFollowersCountByUsername(account);
+  }
+
   public async getWhitelists(owner: JwtPayload): Promise<WhitelistResponse[]> {
     const whitelists = await this.prisma.whitelist.findMany({
       where: {
