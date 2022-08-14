@@ -13,4 +13,7 @@ export class WhitelistPreviewResponse {
   totalSupply: number;
   minBalance: number;
   minTwitterFollowers: number;
+  twitterRequired: boolean;
+  discordRequired: boolean;
+  twitterMinFollowersRequired: boolean;
 }

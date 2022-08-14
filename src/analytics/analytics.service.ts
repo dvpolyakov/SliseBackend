@@ -364,7 +364,10 @@ export class AnalyticsService {
       registrationActive: whitelistLink.whitelist.whitelistInfo.registrationActive,
       totalSupply: whitelistLink.whitelist.whitelistInfo.totalSupply,
       minBalance: whitelistLink.whitelist.settings.minWalletBalance,
-      minTwitterFollowers: whitelistLink.whitelist.settings.minTwitterFollowers
+      minTwitterFollowers: whitelistLink.whitelist.settings.minTwitterFollowers,
+      discordRequired: whitelistLink.whitelist.settings.discordVerification,
+      twitterMinFollowersRequired: whitelistLink.whitelist.settings.requireMinTwitterFollowers,
+      twitterRequired: whitelistLink.whitelist.settings.twitterVerification
     }
   }
 
