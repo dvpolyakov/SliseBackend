@@ -12,4 +12,5 @@ export class WhitelistPreviewResponse {
   registrationActive: boolean;
   totalSupply: number;
   minBalance: number;
+  minTwitterFollowers: number;
 }

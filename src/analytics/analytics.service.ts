@@ -359,7 +359,8 @@ export class AnalyticsService {
       blockchain: mapTokenChainType(whitelistLink.whitelist.chainType),
       registrationActive: whitelistLink.whitelist.whitelistInfo.registrationActive,
       totalSupply: whitelistLink.whitelist.whitelistInfo.totalSupply,
-      minBalance: whitelistLink.whitelist.settings.minWalletBalance
+      minBalance: whitelistLink.whitelist.settings.minWalletBalance,
+      minTwitterFollowers: whitelistLink.whitelist.settings.minTwitterFollowers
     }
   }
 
