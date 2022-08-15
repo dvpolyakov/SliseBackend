@@ -4,7 +4,7 @@ import { Job } from 'bull';
 import { AnalyticsService } from '../analytics/analytics.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
-import { ChainType } from '@prisma/client'
+import { ChainType, TokenType } from '@prisma/client'
 import { mapTokenType } from '../common/utils/token-mapper';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
@@ -123,7 +123,7 @@ export class TokenProcessorService {
     }
   }
 
-  @Process({ name: SOL_QUEUE_KEY_NAME, concurrency: 1 })
+ /* @Process({ name: SOL_QUEUE_KEY_NAME, concurrency: 1 })*/
   async processWhitelistMemberSol(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
     const jobRequest = job.data.jobRequest;
@@ -152,14 +152,39 @@ export class TokenProcessorService {
       });
       const fetchedTokens = tokenBalance.map((token) => {
         return {
-          contractAddress: token.contractAddress,
-          balance: token.balance,
-          contractName: token.contractName,
-          nftDescription: token.nftDescription,
+          contractAddress: token.contractAddress || '',
+          balance: token.balance || 0,
+          contractName: token.contractName || '',
+          nftDescription: token.nftDescription || '',
           nftVersion: token.nftVersion,
-          tokenType: mapTokenType(token.tokenType.toUpperCase()),
+          tokenType: TokenType.UNKOWN,
           whitelistMemberId: whitelistMember.id,
-          items: JSON.stringify(token.nfts)
+          items: JSON.stringify(token.nfts),
+          floorPrice:  null,
+          total_supply: 10000,
+          mintPrice: 2,
+          numOwners:  null,
+          averagePrice:  null,
+          floorPriceHistoricOneDay:  null,
+          floorPriceHistoricSevenDay: null,
+          floorPriceHistoricThirtyDay:  null,
+          marketCap: null,
+          oneDayAveragePrice: null,
+          oneDayChange:  null,
+          oneDaySales: null,
+          oneDayVolume:  null,
+          sevenDayAveragePrice:  null,
+          sevenDayChange:  null,
+          sevenDaySales:  null,
+          sevenDayVolume: null,
+          thirtyDayAveragePrice: null,
+          thirtyDayChange:  null,
+          thirtyDaySales:  null,
+          thirtyDayVolume: null,
+          totalMinted:  null,
+          totalSales:  null,
+          totalVolume:  null,
+          updatedDate:  null,
         }
       });
       const tokens = await this.prisma.token.createMany({
