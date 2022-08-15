@@ -81,8 +81,7 @@ export class TokenProcessorService {
             tokenProcessedAttemps: whitelistMember.tokenProcessedAttemps + 1
           }
         })
-      }
-      else {
+      } else {
         await this.prisma.whitelistMember.update({
           where: {
             id: whitelistMember.id
@@ -101,11 +100,11 @@ export class TokenProcessorService {
     try {
       collectionInfo = await this.blockchainService.getCollectionInfo(token.contractAddress, 'ethereum');
 
-       /* if(!collectionInfo?.logo){
-          collectionInfo = {
-            logo : token.nfts[0]?.image
-          }
-        }*/
+      /* if(!collectionInfo?.logo){
+         collectionInfo = {
+           logo : token.nfts[0]?.image
+         }
+       }*/
 
     } catch (e) {
 
@@ -134,12 +133,13 @@ export class TokenProcessorService {
     const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
 
     await this.prisma.$transaction(async () => {
-      const whitelistMember = await this.prisma.whitelistMember.create({
+      const whitelistMember = await this.prisma.whitelistMember.update({
+        where: {
+          id: jobRequest.whitelistMemberId
+        },
         data: {
-          address: jobRequest.address,
           totalTokens: totalNFTs,
           whitelistId: jobRequest.whitelistId,
-          tokenProcessedAttemps: 0
         }
       });
       await this.prisma.accountBalance.create({
@@ -166,7 +166,11 @@ export class TokenProcessorService {
         data: fetchedTokens
       });
 
+      this.logger.debug(`processed ${fetchedTokens.length} tokens for ${whitelistMember.id}`);
+
+
       if (!(fetchedTokens.length > 0)) {
+        this.logger.debug(`no tokens for ${whitelistMember.address}`);
         await this.prisma.whitelistMember.update({
           where: {
             id: whitelistMember.id
@@ -174,6 +178,15 @@ export class TokenProcessorService {
           data: {
             tokenProcessed: false,
             tokenProcessedAttemps: whitelistMember.tokenProcessedAttemps + 1
+          }
+        })
+      } else {
+        await this.prisma.whitelistMember.update({
+          where: {
+            id: whitelistMember.id
+          },
+          data: {
+            tokenProcessed: true,
           }
         })
       }
