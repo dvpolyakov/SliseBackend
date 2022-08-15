@@ -240,7 +240,7 @@ export class AnalyticsService {
 
     const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
     let topHoldersDashboard: TopHoldersDashboardResponse;
-    if (!existTopHolders)
+    if (existTopHolders)
       topHoldersDashboard = JSON.parse(existTopHolders);
     else {
       const baseStatistics = await this.baseWhitelistStatistics(whitelistId);
