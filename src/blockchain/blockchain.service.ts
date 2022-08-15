@@ -295,6 +295,10 @@ export class BlockchainService {
     return toEther;
   }
 
+  public async solBalance(address: string): Promise<number> {
+    return await this.getSolBalance(address);
+  }
+
   private async getSolBalance(address: string): Promise<number> {
     const response = await this.httpService.post(SOL_RPC,
       {

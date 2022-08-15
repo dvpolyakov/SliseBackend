@@ -77,6 +77,10 @@ export class AnalyticsService {
     });
   }
 
+  public async solBalance(address: string): Promise<number> {
+    return await this.blockchainService.solBalance(address);
+  }
+
   public async getTargets(vector: number): Promise<any> {
     const result = targetingHolders.filter(holder => {
       return holder.vector < vector;

@@ -50,6 +50,11 @@ export class AnalyticsController {
     return await this.analyticsService.getTwitterFollowersCount(account);
   }
 
+  @Get('solBalance')
+  async solBalance(@Query('address') address: string) {
+    return await this.analyticsService.solBalance(address);
+  }
+
   @UseGuards(AuthGuard)
   @Get('whitelists')
   async whitelists(@Req() requestContext: any): Promise<WhitelistResponse[]> {
