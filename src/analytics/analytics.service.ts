@@ -166,13 +166,13 @@ export class AnalyticsService {
         await this.redis.set(`${whitelistId} mutualHoldings`, JSON.stringify(mutualHoldings), 'EX', CACHE_EXPRIRE);
       }
 
-      const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
+      const existTopHolders = await this.redis.get(`${whitelistId} topHolders portfolio`);
       let topHoldersDashboard: TopHoldersDashboardResponse;
       if (existTopHolders)
         topHoldersDashboard = JSON.parse(existTopHolders);
       else
         topHoldersDashboard = {
-          topHolders: await this.topHolders(whitelistId),
+          topHolders: await this.topHolders(whitelistId, true),
           bots: baseStatistics.bots,
           bluechipHolders: baseStatistics.bluechipHolders,
           whales: baseStatistics.whales,
@@ -180,7 +180,7 @@ export class AnalyticsService {
         }
 
       if (topHoldersDashboard.topHolders.length >= MIN_FOR_CACHE) {
-        await this.redis.set(`${whitelistId} topHolders`, JSON.stringify(topHoldersDashboard), 'EX', CACHE_EXPRIRE);
+        await this.redis.set(`${whitelistId} topHolders portfolio`, JSON.stringify(topHoldersDashboard), 'EX', CACHE_EXPRIRE);
       }
 
       const response: WhitelistStatisticsResponse = {
@@ -240,12 +240,12 @@ export class AnalyticsService {
 
     const existTopHolders = await this.redis.get(`${whitelistId} topHolders`);
     let topHoldersDashboard: TopHoldersDashboardResponse;
-    if (existTopHolders)
+    if (!existTopHolders)
       topHoldersDashboard = JSON.parse(existTopHolders);
     else {
       const baseStatistics = await this.baseWhitelistStatistics(whitelistId);
       topHoldersDashboard = {
-        topHolders: await this.topHolders(whitelistId),
+        topHolders: await this.topHolders(whitelistId, false),
         bots: baseStatistics.bots,
         bluechipHolders: baseStatistics.bluechipHolders,
         whales: baseStatistics.whales,
@@ -616,7 +616,7 @@ export class AnalyticsService {
     return mutualHoldings;
   }
 
-  private async topHolders(whitelistId: string): Promise<TopHoldersResponse[]> {
+  private async topHolders(whitelistId: string, key: boolean): Promise<TopHoldersResponse[]> {
     const currentEthPrice = +(await this.redis.get('ethUsdPrice'));
     let topHolders: TopHoldersResponse[] = [];
     try {
@@ -689,9 +689,10 @@ export class AnalyticsService {
         }
       });
 
-      topHolders.sort((a, b) => {
-        return b.portfolio - a.portfolio;
-      });
+      if(key)
+        topHolders.sort((a, b) => {
+          return b.portfolio - a.portfolio;
+        });
     } catch (e) {
       this.logger.debug(`error fetching top holders for whitelist ${whitelistId}`)
     }
