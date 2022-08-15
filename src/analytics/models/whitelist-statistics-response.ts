@@ -1,4 +1,5 @@
 import { DiscordResponse } from './discord-response';
+import { NetworkType } from '../../common/enums/network-type';
 
 export class TopHoldersResponse {
   id: string;
@@ -73,6 +74,7 @@ export class WhitelistStatisticsResponse {
   bluechipHolders: number;
   whales: number;
   bots: number;
+  blockchain: NetworkType;
   topHolders: TopHoldersResponse[];
   mutualHoldings: MutualHoldingsResponse[];
 }

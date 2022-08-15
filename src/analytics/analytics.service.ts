@@ -64,7 +64,7 @@ export class AnalyticsService {
   }
 
   public async test(id: string): Promise<any> {
-   return await this.blockchainService.test();
+   return await this.blockchainService.test(id);
   }
 
   public async solBalance(address: string): Promise<number> {
@@ -191,7 +191,8 @@ export class AnalyticsService {
         whales: baseStatistics.whales,
         whitelistSize: baseStatistics.whitelistSize,
         topHolders: topHoldersDashboard.topHolders,
-        mutualHoldings: mutualHoldings
+        mutualHoldings: mutualHoldings,
+        blockchain: mapTokenChainType(whitelist.chainType)
       }
 
       if (topHoldersDashboard.topHolders.length >= MIN_FOR_CACHE) {

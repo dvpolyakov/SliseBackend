@@ -5,9 +5,10 @@ import { TokenBalance } from '../analytics/models/token-info';
 import { HttpService } from '@nestjs/axios';
 import { Redis } from 'ioredis';
 import { InjectRedis } from '@nestjs-modules/ioredis';
-//import { LogDecoder } from "@maticnetwork/eth-decoder"
+import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { CollectionInfoResponse } from '../analytics/models/whitelist-statistics-response';
 import * as OpenseaScraper from 'opensea-scraper'
+import { PrismaService } from '../prisma/prisma.service';
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 const ETH_RPC = 'https://rpc.ankr.com/eth';
 
@@ -21,7 +22,10 @@ export class BlockchainService {
   private readonly provider;
   private readonly solana;
 
-  constructor(private readonly httpService: HttpService, @InjectRedis() private readonly redis: Redis) {
+  constructor(
+    private readonly httpService: HttpService,
+    @InjectRedis() private readonly redis: Redis,
+    private readonly prisma: PrismaService) {
     this.etherspotSDK = new Sdk(this.sdkPrivatKey, {
       networkName: 'mainnet' as NetworkNames,
     });
@@ -39,9 +43,27 @@ export class BlockchainService {
       });
   }
 
-  public async test(): Promise<any> {
-    const data = await this.getNFTsSolana('4XjQzu7FEXtT5MtA8m9aR6wM5kUzkQgQkSsv9xkwRFuj');
-    return data;
+  public async test(id: string): Promise<any> {
+    const member = await this.prisma.whitelistMember.findUnique({
+      where:{
+        id: id
+      },
+      include: {
+        AccountBalance: true
+      }
+    });
+
+      const bal = await this.getAccountBalanceSol(member.address);
+      await this.prisma.accountBalance.update({
+        where: {
+          id: member.AccountBalance[0].id
+        },
+        data: {
+          tokenBalance: bal.tokenBalance,
+          usdBalance: bal.usdBalance
+        }
+      });
+      return bal
   }
 
   private async opensea(): Promise<any> {
@@ -225,7 +247,7 @@ export class BlockchainService {
   public async getAccountBalanceSol(address: string): Promise<AccountBalanceResponse> {
     try {
       const solBalance = await this.getSolBalance(address);
-      const usd = +(await this.redis.get('ethSolPrice'));
+      const usd = +(await this.redis.get('solUsdPrice'));
       const usdBalance = +(usd * solBalance);
 
       const data = {
@@ -316,7 +338,7 @@ export class BlockchainService {
       }).toPromise();
 
     const data = response.data.result?.value | 0;
-    const value = data / 1_000_000_000;
+    const value = parseFloat(data.toString()) / LAMPORTS_PER_SOL;
 
     return value;
   }
