@@ -203,8 +203,10 @@ export class AnalyticsService {
         topHolders: topHoldersDashboard.topHolders,
         mutualHoldings: mutualHoldings
       }
-      await this.redis.set(`${whitelistId} whitelistStatistics`, JSON.stringify(response), 'EX', CACHE_EXPRIRE);
 
+      if (topHoldersDashboard.topHolders.length >= MIN_FOR_CACHE) {
+        await this.redis.set(`${whitelistId} whitelistStatistics`, JSON.stringify(response), 'EX', CACHE_EXPRIRE);
+      }
       return response;
     }
   }
