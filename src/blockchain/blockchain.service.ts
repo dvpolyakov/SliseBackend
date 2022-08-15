@@ -40,7 +40,7 @@ export class BlockchainService {
   }
 
   public async test(): Promise<any> {
-    const data = await this.opensea();
+    const data = await this.getNFTsSolana('4XjQzu7FEXtT5MtA8m9aR6wM5kUzkQgQkSsv9xkwRFuj');
     return data;
   }
 

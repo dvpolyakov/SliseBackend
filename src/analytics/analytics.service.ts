@@ -64,17 +64,7 @@ export class AnalyticsService {
   }
 
   public async test(id: string): Promise<any> {
-    await this.prisma.whitelistMemberInfo.create({
-
-      data: {
-
-        discord: null,
-        twitter: null,
-        twitterFollowers: null,
-        whitelistMemberId: id
-      }
-
-    });
+   return await this.blockchainService.test();
   }
 
   public async solBalance(address: string): Promise<number> {
