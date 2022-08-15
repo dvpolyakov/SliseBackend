@@ -5,7 +5,6 @@ import { NetworkType } from '../../common/enums/network-type';
 
 export class AuthWhitelistMember {
   @ApiProperty({ type: String })
-  @Length(42)
   @IsString()
   @Transform((address) => address.value.toLowerCase())
   address: string;
