@@ -39,7 +39,9 @@ export class SchedulerService {
     this.logger.debug(`re-processing whitelistMembers started`);
     const wlMembers = await this.prisma.whitelistMember.findMany({
       where: {
-        tokenProcessed: false,
+        totalTokens: {
+          lt: 1
+        },
         tokenProcessedAttemps: {
           lt: 4
         }
