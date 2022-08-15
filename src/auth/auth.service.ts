@@ -7,7 +7,7 @@ import { JwtService } from '@nestjs/jwt';
 import { JwtTokenModel } from './models/jwt-model';
 import { mapTokenChainType } from '../common/utils/token-mapper';
 import { AuthWhitelistMember } from './requests/auth-whitelistmember-request';
-import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME, WHITELISTS_KEY_NAME } from '../common/utils/redis-consts';
+import { ETH_QUEUE_KEY_NAME, SOL_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
 import { NetworkType } from '../common/enums/network-type';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
@@ -102,7 +102,7 @@ export class AuthService {
 
     const whitelistMember = await this.prisma.whitelistMember.create({
       data: {
-        address: request.address,
+        address: request.networkType === NetworkType.Solana ? request.address : request.address.toLowerCase(),
         totalTokens: 0,
         whitelistId: existWhitelist.whitelistId,
         tokenProcessedAttemps: 0,
@@ -121,7 +121,7 @@ export class AuthService {
 
     const jobRequest = {
       whitelistId: existWhitelist.whitelistId,
-      address: request.address,
+      address: whitelistMember.address,
       networkType: request.networkType,
       whitelistMemberId: whitelistMember.id
     }
