@@ -34,12 +34,11 @@ export class SchedulerService {
   //   this.logger.debug("holders saved successfully!");
   // }
 
-  @Cron(CronExpression.EVERY_10_MINUTES)
+  @Cron(CronExpression.EVERY_5_MINUTES)
   async handleFailedTokens() {
     this.logger.debug(`re-processing whitelistMembers started`);
     const wlMembers = await this.prisma.whitelistMember.findMany({
       where: {
-        tokenProcessed: false,
         tokenProcessedAttemps: {
           lt: 4
         }

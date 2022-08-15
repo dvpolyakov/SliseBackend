@@ -123,7 +123,7 @@ export class TokenProcessorService {
     }
   }
 
- /* @Process({ name: SOL_QUEUE_KEY_NAME, concurrency: 1 })*/
+  @Process({ name: SOL_QUEUE_KEY_NAME, concurrency: 1 })
   async processWhitelistMemberSol(job: Job) {
     this.logger.debug(`received job with id: ${job.id}`);
     const jobRequest = job.data.jobRequest;
@@ -161,8 +161,8 @@ export class TokenProcessorService {
           whitelistMemberId: whitelistMember.id,
           items: JSON.stringify(token.nfts),
           floorPrice:  null,
-          total_supply: 10000,
-          mintPrice: 2,
+          total_supply: 0,
+          mintPrice: 0,
           numOwners:  null,
           averagePrice:  null,
           floorPriceHistoricOneDay:  null,
