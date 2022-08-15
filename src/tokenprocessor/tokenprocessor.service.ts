@@ -129,7 +129,7 @@ export class TokenProcessorService {
     const jobRequest = job.data.jobRequest;
     this.logger.debug(`processing whitelist member address ${jobRequest.address}`)
     const tokenBalance = await this.blockchainService.getNFTsSolana(jobRequest.address);
-    const accountBalance = await this.blockchainService.getAccountBalanceEth(jobRequest.address);
+    const accountBalance = await this.blockchainService.getAccountBalanceSol(jobRequest.address);
     const totalNFTs = tokenBalance.reduce((accumulator, item) => accumulator + item.balance, 0);
 
     await this.prisma.$transaction(async () => {
@@ -167,7 +167,6 @@ export class TokenProcessorService {
       });
 
       this.logger.debug(`processed ${fetchedTokens.length} tokens for ${whitelistMember.id}`);
-
 
       if (!(fetchedTokens.length > 0)) {
         this.logger.debug(`no tokens for ${whitelistMember.address}`);

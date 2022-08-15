@@ -264,7 +264,7 @@ export class BlockchainService {
       }
     }).toPromise();
     let data = response.data.result.assets;
-    if (response.data.result.totalPages > page) {
+    if (response.data.result.totalPages > page && page < 5) {
       return data.concat(await Promise.all(await this.fetchNFTsSolana(address, page + 1)));
     } else {
       return data || [];
