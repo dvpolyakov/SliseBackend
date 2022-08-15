@@ -448,7 +448,7 @@ export class AnalyticsService {
       data: uploadModel
     });
     let link: string;
-    if(whitelist.name !== request.collectionName){
+    if (whitelist.name !== request.collectionName) {
       await this.prisma.whitelistLink.delete({
         where: {
           link: whitelist.whitelistLink.link
@@ -458,7 +458,7 @@ export class AnalyticsService {
       const addedSymbols = makeRandomWord(4);
       link = `${newCollectionName || makeRandomWord(3)}-${addedSymbols}`;
       await this.prisma.whitelistLink.create({
-        data:{
+        data: {
           whitelistId: whitelist.id,
           link: link
         }
@@ -563,7 +563,7 @@ export class AnalyticsService {
 
   private async mutualHoldings(whitelistId: string): Promise<MutualHoldingsResponse[]> {
     let mutualHoldings: MutualHoldingsResponse[] = [];
-    try{
+    try {
       mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
         select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
         inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
@@ -612,8 +612,7 @@ export class AnalyticsService {
           holding.percent = ((holding.totalholdings / initValue) * initPercent);
         }
       });
-    }
-    catch (e){
+    } catch (e) {
       this.logger.debug(`error fetching mutual holders for whitelist ${whitelistId}`)
     }
 
@@ -623,7 +622,7 @@ export class AnalyticsService {
   private async topHolders(whitelistId: string): Promise<TopHoldersResponse[]> {
     const currentEthPrice = +(await this.redis.get('ethUsdPrice'));
     let topHolders: TopHoldersResponse[] = [];
-    try{
+    try {
       topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`
         select DISTINCT "WhitelistMember".id, "WhitelistMember".address, AB."tokenBalance" as portfolio, "WhitelistMember"."totalTokens" as nfts, WMI.discord, WMI.twitter, WMI."twitterFollowers" from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
@@ -664,14 +663,16 @@ export class AnalyticsService {
             logo: logo
           }
         });
-
-        if (collections.length < 3) {
+        if (collections.filter(x => x.logo).length < 3) {
           let nfts: TokenData[] = JSON.parse(tokens[0].items.toString());
-          collections = nfts.slice(0, 3).map((nft) => {
+          collections.filter(x => x.logo == null).map((cl) => {
+            cl.logo = nfts[Math.random() * nfts.length].image;
+          })
+          /*collections = nfts.slice(0, 3).map((nft) => {
             return {
               logo: nft.image
             }
-          })
+          })*/
         }
         holder.alsoHold = {
           total: holder.nfts - tokens.length,
@@ -694,8 +695,7 @@ export class AnalyticsService {
       topHolders.sort((a, b) => {
         return b.portfolio - a.portfolio;
       });
-    }
-    catch (e) {
+    } catch (e) {
       this.logger.debug(`error fetching top holders for whitelist ${whitelistId}`)
     }
 
