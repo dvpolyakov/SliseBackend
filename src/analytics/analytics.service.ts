@@ -7,7 +7,7 @@ import { WhitelistInfoResponse } from './models/whitelist-info-response';
 import {
   BaseStatisticsResponse,
   CollectionInfoResponse,
-  MutualHoldingsResponse,
+  MutualHoldingsResponse, MutualHoldingsResponseModel,
   TargetingResponse,
   TopHoldersDashboardResponse,
   TopHoldersResponse,
@@ -64,7 +64,7 @@ export class AnalyticsService {
   }
 
   public async test(id: string): Promise<any> {
-   return await this.blockchainService.test(id);
+    return await this.blockchainService.test(id);
   }
 
   public async solBalance(address: string): Promise<number> {
@@ -202,7 +202,7 @@ export class AnalyticsService {
     }
   }
 
-  public async getMutualHoldings(whitelistId: string, owner: JwtPayload): Promise<MutualHoldingsResponse[]> {
+  public async getMutualHoldings(whitelistId: string, owner: JwtPayload): Promise<MutualHoldingsResponseModel> {
     const whitelist = await this.prisma.whitelist.findUnique({
       where: {
         id: whitelistId
@@ -213,11 +213,17 @@ export class AnalyticsService {
       throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
 
     const existMutualHolders = await this.redis.get(`${whitelistId} mutualHolders`);
-    let mutualHoldings: MutualHoldingsResponse[];
+    let mutualHoldings: MutualHoldingsResponseModel;
     if (existMutualHolders)
-      mutualHoldings = JSON.parse(existMutualHolders);
+      mutualHoldings = {
+        blockchain: mapTokenChainType(whitelist.chainType),
+        mutualHoldings: JSON.parse(existMutualHolders)
+      }
     else
-      mutualHoldings = await this.mutualHoldings(whitelistId);
+      mutualHoldings = {
+        blockchain: mapTokenChainType(whitelist.chainType),
+        mutualHoldings: await this.mutualHoldings(whitelistId)
+      }
 
     return mutualHoldings;
   }

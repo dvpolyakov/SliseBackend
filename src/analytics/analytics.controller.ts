@@ -24,7 +24,7 @@ import { WhitelistPreviewResponse } from './responses/whitelist-preview-response
 import { WhitelistSettingsResponse } from './responses/whitelist-settings-response';
 import { WhitelistSettingsRequest } from './requests/whitelist-settings-request';
 import {
-  MutualHoldingsResponse, TargetingResponse,
+  MutualHoldingsResponse, MutualHoldingsResponseModel, TargetingResponse,
   TopHoldersDashboardResponse,
   WhitelistStatisticsResponse
 } from './models/whitelist-statistics-response';
@@ -123,7 +123,7 @@ export class AnalyticsController {
 
   @UseGuards(AuthGuard)
   @Get('mutualHoldings')
-  async mutualHoldings(@Query('whitelistId') whitelistId: string, @Req() requestContext: any): Promise<MutualHoldingsResponse[]> {
+  async mutualHoldings(@Query('whitelistId') whitelistId: string, @Req() requestContext: any): Promise<MutualHoldingsResponseModel> {
     return await this.analyticsService.getMutualHoldings(whitelistId, requestContext.user as JwtPayload);
   }
 

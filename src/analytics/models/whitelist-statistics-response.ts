@@ -32,6 +32,11 @@ export class MutualHoldingsResponse {
   holdings?: CollectionInfoResponse;
 }
 
+export class MutualHoldingsResponseModel {
+  mutualHoldings: MutualHoldingsResponse[];
+  blockchain: NetworkType
+}
+
 export class AlsoHold {
   collectionInfo?: CollectionInfoResponse[];
   total?: number;
