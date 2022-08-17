@@ -7,9 +7,8 @@ import { BlockchainModule } from '../blockchain/blockchain.module';
 @Module({
   imports: [AnalyticsModule, PrismaModule, BlockchainModule],
   providers: [TokenProcessorService],
-  exports: [TokenProcessorService]
+  exports: [TokenProcessorService],
 })
 export class TokenProcessorModule implements OnModuleInit {
-  onModuleInit() {
-  }
+  onModuleInit() {}
 }

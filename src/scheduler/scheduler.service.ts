@@ -1,14 +1,11 @@
 import { InjectRedis, Redis } from '@nestjs-modules/ioredis';
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
-import { AnalyticsService } from '../analytics/analytics.service';
-import { PrismaService } from '../prisma/prisma.service';
-import { mapTokenChainType, mapTokenType } from '../common/utils/token-mapper';
-import { BigInt } from 'postgres';
-import { ETH_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
 import { InjectQueue } from '@nestjs/bull';
 import { Queue } from 'bull';
-
+import { AnalyticsService } from '../analytics/analytics.service';
+import { PrismaService } from '../prisma/prisma.service';
+import { ETH_QUEUE_KEY_NAME } from '../common/utils/redis-consts';
 
 @Injectable()
 export class SchedulerService {
@@ -17,8 +14,7 @@ export class SchedulerService {
     private readonly analyticsService: AnalyticsService,
     private readonly prisma: PrismaService,
     @InjectQueue('whitelist') private readonly holdersQueue: Queue,
-  ) {
-  }
+  ) {}
 
   private readonly logger = new Logger(SchedulerService.name);
 
@@ -36,41 +32,47 @@ export class SchedulerService {
 
   @Cron(CronExpression.EVERY_5_MINUTES)
   async handleFailedTokens() {
-    this.logger.debug(`re-processing whitelistMembers started`);
+    this.logger.debug('re-processing whitelistMembers started');
     const wlMembers = await this.prisma.whitelistMember.findMany({
       where: {
         AccountBalance: {
           every: {
-            chainType : {
-             not: 'SOLANA'
-            }
-          }
+            chainType: {
+              not: 'SOLANA',
+            },
+          },
         },
         totalTokens: {
-          lt: 1
+          lt: 1,
         },
         tokenProcessedAttemps: {
-          lt: 4
-        }
+          lt: 4,
+        },
       },
-      take: 5
+      take: 5,
     });
-    this.logger.debug(`re-processing whitelistMembers count ${wlMembers.length}`);
-    await Promise.all(wlMembers.map(async (member) => {
-      const jobRequest = {
-        whitelistId: member.whitelistId,
-        address: member.address,
-        networkType: 'Ethereum',
-        whitelistMemberId: member.id
-      }
-      const job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
-        jobRequest
-      });
-      this.logger.debug(`re-processing whitelistMember ${member.address}`);
-    }));
+    this.logger.debug(
+      `re-processing whitelistMembers count ${wlMembers.length}`,
+    );
+    await Promise.all(
+      wlMembers.map(async (member) => {
+        const jobRequest = {
+          whitelistId: member.whitelistId,
+          address: member.address,
+          networkType: 'Ethereum',
+          whitelistMemberId: member.id,
+        };
+        const job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
+          jobRequest,
+        });
+        this.logger.debug(
+          `re-processing whitelistMember ${member.address}, job ${job.id}`,
+        );
+      }),
+    );
   }
 
-  //@Cron(CronExpression.EVERY_10_SECONDS)
+  // @Cron(CronExpression.EVERY_10_SECONDS)
   // async processTokens() {
   //   this.logger.debug('fetching tokens');
   //   const holders = await this.prisma.tokenHolder.findMany({

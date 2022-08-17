@@ -1,4 +1,10 @@
-import { Body, Controller, Post, UseInterceptors, ValidationPipe } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  UseInterceptors,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { SentryInterceptor } from '../common/interceptors/sentry.interceptor';
 import { TransformInterceptor } from '../common/interceptors/transform.interceptor';
@@ -11,19 +17,21 @@ import { JwtTokenModel } from './models/jwt-model';
 @UseInterceptors(SentryInterceptor)
 @Controller({ path: 'api/auth' })
 export class AuthController {
-  constructor(
-    private readonly authService: AuthService) {
-  }
+  constructor(private readonly authService: AuthService) {}
 
   @Post('authUser')
   @UseInterceptors(TransformInterceptor)
-  async authUser(@Body(new ValidationPipe({ transform: true })) request: AuthUserRequest): Promise<JwtTokenModel> {
-    return await this.authService.authUser(request);
+  async authUser(
+    @Body(new ValidationPipe({ transform: true })) request: AuthUserRequest,
+  ): Promise<JwtTokenModel> {
+    return this.authService.authUser(request);
   }
 
   @Post('authWhitelistMember')
   @UseInterceptors(TransformInterceptor)
-  async getWhitelists(@Body(new ValidationPipe({ transform: true })) request: AuthWhitelistMember): Promise<string> {
-    return await this.authService.authWhitelistMember(request);
+  async getWhitelists(
+    @Body(new ValidationPipe({ transform: true })) request: AuthWhitelistMember,
+  ): Promise<string> {
+    return this.authService.authWhitelistMember(request);
   }
 }

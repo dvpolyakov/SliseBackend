@@ -3,6 +3,6 @@ import { PersistentStorageService } from './persistentstorage.service';
 
 @Module({
   providers: [PersistentStorageService],
-  exports: [PersistentStorageService]
+  exports: [PersistentStorageService],
 })
 export class PersistentStorageModule {}

@@ -35,16 +35,16 @@ export function mapTokenType(tokenType: string): TokenType {
 export function mapChainType(networkType: NetworkType): ChainType {
   let chainType: ChainType;
   switch (networkType) {
-    case  NetworkType.Unknown:
+    case NetworkType.Unknown:
       chainType = ChainType.UNKNOWN;
       break;
-    case  NetworkType.Ethereum:
+    case NetworkType.Ethereum:
       chainType = ChainType.ETHEREUM;
       break;
-    case  NetworkType.Polygon:
+    case NetworkType.Polygon:
       chainType = ChainType.POLYGON;
       break;
-    case  NetworkType.Solana:
+    case NetworkType.Solana:
       chainType = ChainType.SOLANA;
       break;
     default:
@@ -57,16 +57,16 @@ export function mapChainType(networkType: NetworkType): ChainType {
 export function mapTokenChainType(chainType: ChainType): NetworkType {
   let networkType: NetworkType;
   switch (chainType) {
-    case  ChainType.UNKNOWN:
+    case ChainType.UNKNOWN:
       networkType = NetworkType.Unknown;
       break;
-    case  ChainType.ETHEREUM:
+    case ChainType.ETHEREUM:
       networkType = NetworkType.Ethereum;
       break;
-    case  ChainType.POLYGON:
+    case ChainType.POLYGON:
       networkType = NetworkType.Polygon;
       break;
-    case  ChainType.SOLANA:
+    case ChainType.SOLANA:
       networkType = NetworkType.Solana;
       break;
     default:

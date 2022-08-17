@@ -1,12 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsString, Length, Max, Min } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsEnum, IsString } from 'class-validator';
 import { NetworkType } from '../../common/enums/network-type';
 
 export class AuthWhitelistMember {
   @ApiProperty({ type: String })
   @IsString()
- /* @Transform((address) => address.value.toLowerCase())*/
+  /* @Transform((address) => address.value.toLowerCase()) */
   address: string;
 
   @ApiProperty({ type: String })

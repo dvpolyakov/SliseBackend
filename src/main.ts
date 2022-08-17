@@ -1,19 +1,18 @@
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AnalyticsModule } from './analytics/analytics.module';
-import { AppModule } from './app.module';
 import * as Sentry from '@sentry/node';
+import { AppModule } from './app.module';
 
 const port = process.env.PORT;
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { cors: false });
   const options = {
-    "origin": "*",
-    "methods": "GET,HEAD,PUT,PATCH,POST,DELETE",
-    "preflightContinue": false,
-    "optionsSuccessStatus": 204,
-    "credentials": true
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
+    credentials: true,
   };
   app.enableCors(options);
   /* app.enableCors(
@@ -22,7 +21,7 @@ async function bootstrap() {
        methods: ['POST', 'PUT', 'DELETE', 'GET'],
        allowedHeaders: ['Access-Control-Allow-Origin'],
      }
-   );*/
+   ); */
   const config = new DocumentBuilder()
     .setTitle('Slice')
     .setDescription('Slice API description')

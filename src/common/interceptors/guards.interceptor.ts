@@ -7,26 +7,21 @@ import {
   Injectable,
 } from '@nestjs/common';
 import * as jwt from 'jsonwebtoken';
-import { JwtPayload } from '../../auth/models/payload';
-
-type ContextWithType = ExecutionContext & {
-  contextType: string;
-  user: JwtPayload;
-};
 
 @Injectable()
 export class AuthGuard implements CanActivate {
   private readonly secretKey = process.env.SECRETKEY;
-  private readonly web3 = require('web3');
+
+  private readonly Web3 = require('web3');
 
   constructor(private readonly reflector: Reflector) {
-    this.web3 = new this.web3(
-      new this.web3.providers.HttpProvider('https://api.mycryptoapi.com/eth'),
+    this.Web3 = new this.Web3(
+      new this.Web3.providers.HttpProvider('https://api.mycryptoapi.com/eth'),
     );
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    const ctx = context.switchToHttp().getRequest()
+    const ctx = context.switchToHttp().getRequest();
     if (!ctx.headers.authorization) {
       return false;
     }
@@ -35,12 +30,12 @@ export class AuthGuard implements CanActivate {
   }
 
   async validateAddress(auth: string) {
-    //TODO Chain after sep address
-    //if (auth.split(' ')[0] !== 'Metamask' || auth.split(' ')[0] !== 'Phantom') {
+    // TODO Chain after sep address
+    // if (auth.split(' ')[0] !== 'Metamask' || auth.split(' ')[0] !== 'Phantom') {
     if (auth.split(' ')[0] !== 'Bearer') {
       throw new HttpException('Invalid token', HttpStatus.UNAUTHORIZED);
     }
- /*   const address = auth.split(' ')[1];
+    /*   const address = auth.split(' ')[1];
 
     //TODO Also check solana
     const isAddress = this.web3.utils.isAddress(address);

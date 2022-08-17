@@ -1,10 +1,10 @@
 import { HttpModule } from '@nestjs/axios';
 import { Module } from '@nestjs/common';
-import { WarmupService } from '../warmup/warmup.service';
+import { WarmupService } from './warmup.service';
 
 @Module({
   imports: [HttpModule],
   providers: [WarmupService],
-  exports: [WarmupService]
+  exports: [WarmupService],
 })
 export class WarmupModule {}
