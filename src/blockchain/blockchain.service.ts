@@ -176,7 +176,7 @@ export class BlockchainService {
       return {
         contractName: collectionName,
         contractSymbol: 'SOL',
-        contractAddress: item.collectionAddress.toLowerCase(),
+        contractAddress: item.collectionAddress,
         tokenType: 'SOL',
         nftVersion: null,
         nftDescription: item.description,
