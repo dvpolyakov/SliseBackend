@@ -703,19 +703,19 @@ export class AnalyticsService {
   private async baseWhitelistStatistics(whitelistId: string): Promise<BaseStatisticsResponse> {
     //TODO: cache this variables
     const [whales, bluechips, whitelistSize, bots] = await Promise.all([
-      await this.prisma.$queryRaw<number>`
+      this.prisma.$queryRaw<number>`
         select count(*) from "WhitelistMember"
         inner join "AccountBalance" AB on "WhitelistMember".id = AB."whitelistMemberId"
         where AB."usdBalance" >= cast(${2000000}::text as double precision) and "whitelistId" = ${whitelistId}`,
-      await this.prisma.$queryRaw<number>`
+      this.prisma.$queryRaw<number>`
         select count(*) from "WhitelistMember"
         where "WhitelistMember"."totalTokens" >= cast(${10}::text as double precision) and "whitelistId" = ${whitelistId}`,
-      await this.prisma.whitelistMember.count({
+      this.prisma.whitelistMember.count({
         where: {
           whitelistId: whitelistId
         }
       }),
-      await this.prisma.whitelistMember.count({
+      this.prisma.whitelistMember.count({
         where: {
           whitelistId: whitelistId,
           totalTokens: {
