@@ -33,12 +33,14 @@ import {
   ProjectInfoResponse,
   ProjectInfoRequest,
 } from './requests/project-info-request';
+import { NetworkType } from '../common/enums/network-type';
 
 const CACHE_EXPIRE = 60 * 10;
 const ENS_ADDRESS = '0x57f1887a8BF19b14fC0dF6Fd9B2acc9Af147eA85';
 const QUERY_LIMIT = 30;
 const MIN_FOR_CACHE = 15;
 
+// TODO: IPFS link support
 @Injectable()
 export class AnalyticsService {
   private readonly logger = new Logger(AnalyticsService.name);
@@ -194,7 +196,11 @@ export class AnalyticsService {
     if (existTopHolders) topHoldersDashboard = JSON.parse(existTopHolders);
     else
       topHoldersDashboard = {
-        topHolders: await this.topHolders(whitelistId, true),
+        topHolders: await this.topHolders(
+          whitelistId,
+          true,
+          mapTokenChainType(whitelist.chainType),
+        ),
         bots: baseStatistics.bots,
         bluechipHolders: baseStatistics.bluechipHolders,
         whales: baseStatistics.whales,
@@ -283,7 +289,11 @@ export class AnalyticsService {
     else {
       const baseStatistics = await this.baseWhitelistStatistics(whitelistId);
       topHoldersDashboard = {
-        topHolders: await this.topHolders(whitelistId, false),
+        topHolders: await this.topHolders(
+          whitelistId,
+          false,
+          mapTokenChainType(whitelist.chainType),
+        ),
         bots: baseStatistics.bots,
         bluechipHolders: baseStatistics.bluechipHolders,
         whales: baseStatistics.whales,
@@ -637,7 +647,7 @@ export class AnalyticsService {
       mutualHoldings = await this.prisma.$queryRaw<MutualHoldingsResponse[]>`
         select "Token"."contractAddress" as address, "Token"."contractName", count("Token"."contractAddress") as totalHoldings from "Token"
         inner join "WhitelistMember" WM on WM.id = "Token"."whitelistMemberId"
-        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" not in (${ENS_ADDRESS},'0x5da829cA23fE1Dd973421E8574aE05093caB924c')
+        where WM."whitelistId" = ${whitelistId} and "Token"."tokenType" <> 'ERC20' and "Token"."contractAddress" not in (${ENS_ADDRESS})
         group by "Token"."contractAddress", "Token"."contractName"
         order by totalHoldings desc
         limit ${QUERY_LIMIT};`;
@@ -695,8 +705,24 @@ export class AnalyticsService {
   private async topHolders(
     whitelistId: string,
     key: boolean,
+    networkType: NetworkType,
   ): Promise<TopHoldersResponse[]> {
-    const currentEthPrice = +(await this.redis.get('ethUsdPrice'));
+    // TODO: Fix it!
+    let multiplicator;
+    switch (networkType) {
+      case NetworkType.Ethereum:
+        multiplicator = +(await this.redis.get('ethUsdPrice'));
+        break;
+      case NetworkType.Polygon:
+        multiplicator = +(await this.redis.get('maticUsdPrice'));
+        break;
+      case NetworkType.Solana:
+        multiplicator = +(await this.redis.get('solUsdPrice'));
+        break;
+      default:
+        multiplicator = 1;
+        break;
+    }
     let topHolders: TopHoldersResponse[] = [];
     try {
       topHolders = await this.prisma.$queryRaw<TopHoldersResponse[]>`
@@ -712,7 +738,7 @@ export class AnalyticsService {
 
       await Promise.all(
         topHolders.map(async (holder) => {
-          holder.portfolio *= currentEthPrice;
+          holder.portfolio *= multiplicator;
           if (holder.portfolio >= 2_000_000) {
             holder.label = 'whale';
           } else {
@@ -733,19 +759,20 @@ export class AnalyticsService {
             },
             take: 3,
           });
+          // TODO: sometimes null
           const collections: CollectionInfoResponse[] = tokens.map((token) => {
             const balances: TokenData[] = JSON.parse(token.items.toString());
-            const logo = token.logo ?? balances[0]?.image;
+            const logo = token.logo ?? (balances[0]?.image || '');
             return {
               logo,
             };
           });
-          if (collections.filter((x) => x.logo).length < 3) {
+          if (!collections || collections?.filter((x) => x.logo).length < 3) {
             const nfts: TokenData[] = JSON.parse(tokens[0].items.toString());
             collections
               .filter((x) => x.logo == null)
               .forEach((cl) => {
-                cl.logo = nfts[Math.random() * nfts.length].image;
+                cl.logo = nfts[Math.random() * nfts.length]?.image || '';
               });
             /* collections = nfts.slice(0, 3).map((nft) => {
             return {
