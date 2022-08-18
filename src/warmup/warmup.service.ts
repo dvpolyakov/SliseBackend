@@ -41,8 +41,8 @@ export class WarmupService implements OnApplicationBootstrap {
     const response = await this.httpService
       .get(`${BINANCE_API_URL}MATICUSDT`)
       .toPromise();
-    const solUsdt = +response.data.price;
-    this.logger.debug(`current matic-usdt price ${solUsdt.toFixed(2)}`);
-    await this.redis.set('maticUsdPrice', solUsdt.toFixed(2));
+    const maticUsdt = +response.data.price;
+    this.logger.debug(`current matic-usdt price ${maticUsdt.toFixed(2)}`);
+    await this.redis.set('maticUsdPrice', maticUsdt.toFixed(2));
   }
 }

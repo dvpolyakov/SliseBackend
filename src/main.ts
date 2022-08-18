@@ -32,12 +32,11 @@ async function bootstrap() {
 
     const document = SwaggerModule.createDocument(app, config);
     SwaggerModule.setup('swagger', app, document);
-    await app.listen(port);
   }
-
   Sentry.init({
     dsn: 'https://47c6436e80ea42fbbc338d3be8f64049@o1304332.ingest.sentry.io/6544715',
   });
+  await app.listen(port);
 }
 
 bootstrap();

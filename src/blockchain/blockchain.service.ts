@@ -49,26 +49,10 @@ export class BlockchainService {
   }
 
   public async test(id: string): Promise<any> {
-    const member = await this.prisma.whitelistMember.findUnique({
-      where: {
-        id,
-      },
-      include: {
-        AccountBalance: true,
-      },
-    });
-
-    const bal = await this.getAccountBalanceSol(member.address);
-    await this.prisma.accountBalance.update({
-      where: {
-        id: member.AccountBalance[0].id,
-      },
-      data: {
-        tokenBalance: bal.tokenBalance,
-        usdBalance: bal.usdBalance,
-      },
-    });
-    return bal;
+    const a = await this.getAccountBalancePolygon(
+      '0xb3db45478c3550e066260677f3d8c4ec886bdcc8',
+    );
+    return a;
   }
 
   // private async opensea(): Promise<any> {
@@ -291,12 +275,7 @@ export class BlockchainService {
     address: string,
   ): Promise<AccountBalanceResponse> {
     try {
-      const maticBalance = await this.httpService
-        .get(
-          `https://api.polygonscan.com/api?module=account&action=balance&address=${address}&apikey=${process.env.POLYGON_API_KEY}`,
-        )
-        .toPromise()
-        .then((response) => response.data.result);
+      const maticBalance = await this.getMaticBalance(address);
       const usd = +(await this.redis.get('maticUsdPrice'));
       const usdBalance = +(usd * maticBalance);
 
@@ -394,6 +373,18 @@ export class BlockchainService {
     const parsed = parseInt(hexBalance, 16);
     const toEther = +this.Web3.utils.fromWei(parsed.toString(), 'ether');
     return toEther;
+  }
+
+  private async getMaticBalance(address: string): Promise<number> {
+    const maticBalance = await this.httpService
+      .get(
+        `https://api.polygonscan.com/api?module=account&action=balance&address=${address}&apikey=${process.env.POLYGON_API_KEY}`,
+      )
+      .toPromise()
+      .then((response) => response.data.result);
+
+    const toMatic = maticBalance / 1000000000000000000;
+    return toMatic;
   }
 
   public async solBalance(address: string): Promise<number> {
