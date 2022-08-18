@@ -16,6 +16,7 @@ export class WarmupService implements OnApplicationBootstrap {
   onApplicationBootstrap() {
     this.fetchEthPrice();
     this.fetchSolPrice();
+    this.fetchMaticPrice();
   }
 
   async fetchEthPrice() {
@@ -34,5 +35,14 @@ export class WarmupService implements OnApplicationBootstrap {
     const solUsdt = +response.data.price;
     this.logger.debug(`current sol-usdt price ${solUsdt.toFixed(2)}`);
     await this.redis.set('solUsdPrice', solUsdt.toFixed(2));
+  }
+
+  async fetchMaticPrice() {
+    const response = await this.httpService
+      .get(`${BINANCE_API_URL}MATICUSDT`)
+      .toPromise();
+    const solUsdt = +response.data.price;
+    this.logger.debug(`current matic-usdt price ${solUsdt.toFixed(2)}`);
+    await this.redis.set('maticUsdPrice', solUsdt.toFixed(2));
   }
 }

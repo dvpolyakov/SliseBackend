@@ -11,6 +11,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 const ETH_RPC = 'https://rpc.ankr.com/eth';
+const SOL_QUICKNODE =
+  'https://dry-small-silence.solana-mainnet.discover.quiknode.pro/d5701a29449dd7789630ec39f38ec793bfba2822/';
 
 @Injectable()
 export class BlockchainService {
@@ -26,7 +28,7 @@ export class BlockchainService {
 
   private readonly provider;
 
-  private readonly solana;
+  private readonly PosClient;
 
   constructor(
     private readonly httpService: HttpService,
@@ -204,7 +206,38 @@ export class BlockchainService {
 
   public async getNFTsEthereum(address: string): Promise<TokenBalance[]> {
     try {
-      const sdk = this.getNewSdk('mainnet');
+      const sdk = this.getNewSdk(NetworkNames.Mainnet);
+      const data = await sdk.getNftList({
+        account: address,
+      });
+      return data.items.map((item) => {
+        return {
+          contractName: item.contractName,
+          contractSymbol: item.contractSymbol,
+          contractAddress: item.contractAddress.toLowerCase(),
+          tokenType: item.tokenType,
+          nftVersion: item.nftVersion,
+          nftDescription: item.nftDescription,
+          balance: +item.balance,
+          nfts: item.items.map((nft) => {
+            return {
+              tokenId: +nft.tokenId,
+              name: nft.name,
+              amount: nft.amount,
+              image: nft.image,
+            };
+          }),
+        };
+      });
+    } catch {
+      this.logger.debug(`error processing address ${address}`);
+      return [];
+    }
+  }
+
+  public async getNFTsPolygon(address: string): Promise<TokenBalance[]> {
+    try {
+      const sdk = this.getNewSdk(NetworkNames.Matic);
       const data = await sdk.getNftList({
         account: address,
       });
@@ -254,6 +287,32 @@ export class BlockchainService {
     }
   }
 
+  public async getAccountBalancePolygon(
+    address: string,
+  ): Promise<AccountBalanceResponse> {
+    try {
+      const maticBalance = await this.httpService
+        .get(
+          `https://api.polygonscan.com/api?module=account&action=balance&address=${address}&apikey=${process.env.POLYGON_API_KEY}`,
+        )
+        .toPromise()
+        .then((response) => response.data.result);
+      const usd = +(await this.redis.get('maticUsdPrice'));
+      const usdBalance = +(usd * maticBalance);
+
+      const data = {
+        tokenBalance: maticBalance,
+        usdBalance,
+      };
+      return data;
+    } catch {
+      return {
+        tokenBalance: 0,
+        usdBalance: 0,
+      };
+    }
+  }
+
   public async getAccountBalanceSol(
     address: string,
   ): Promise<AccountBalanceResponse> {
@@ -275,16 +334,16 @@ export class BlockchainService {
     }
   }
 
-  private getNewSdk(network: string): Sdk {
+  private getNewSdk(network: NetworkNames): Sdk {
     return new Sdk(this.sdkPrivatKey, {
-      networkName: network as NetworkNames,
+      networkName: network,
     });
   }
 
   private async fetchNFTsSolana(address: string, page: number): Promise<any> {
     const response = await this.httpService
       .post(
-        'https://dry-small-silence.solana-mainnet.discover.quiknode.pro/d5701a29449dd7789630ec39f38ec793bfba2822/',
+        SOL_QUICKNODE,
         {
           jsonrpc: '2.0',
           id: 1,

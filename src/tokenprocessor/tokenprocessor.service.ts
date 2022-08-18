@@ -10,6 +10,7 @@ import { mapTokenType } from '../common/utils/token-mapper';
 import { BlockchainService } from '../blockchain/blockchain.service';
 import {
   ETH_QUEUE_KEY_NAME,
+  MATIC_QUEUE_KEY_NAME,
   SOL_QUEUE_KEY_NAME,
 } from '../common/utils/redis-consts';
 import { TokenBalance } from '../analytics/models/token-info';
@@ -41,6 +42,87 @@ export class TokenProcessorService {
     const accountBalance = await this.blockchainService.getAccountBalanceEth(
       jobRequest.address,
     );
+    const totalNFTs = tokenBalance.reduce(
+      (accumulator, item) => accumulator + item.balance,
+      0,
+    );
+
+    await this.prisma.$transaction(async () => {
+      const whitelistMember = await this.prisma.whitelistMember.update({
+        where: {
+          id: jobRequest.whitelistMemberId,
+        },
+        data: {
+          totalTokens: totalNFTs,
+          whitelistId: jobRequest.whitelistId,
+        },
+      });
+      await this.prisma.accountBalance.create({
+        data: {
+          whitelistMemberId: whitelistMember.id,
+          tokenBalance: accountBalance.tokenBalance,
+          usdBalance: accountBalance.usdBalance,
+          chainType: ChainType.ETHEREUM,
+        },
+      });
+      const limit = pLimit(CONCURRENT_WORKERS);
+      let fetchedTokens: any[] = [];
+      const jobs: any[] = [];
+      tokenBalance.map((token) =>
+        jobs.push(limit(() => this.processEthToken(whitelistMember.id, token))),
+      );
+      fetchedTokens = await Promise.all(jobs);
+      this.logger.debug(
+        `processed ${fetchedTokens.length} tokens for ${whitelistMember.id}`,
+      );
+
+      await this.prisma.token.createMany({
+        data: fetchedTokens,
+      });
+
+      // await Promise.all(fetchedTokens.map(async (token) => {
+      //   await this.prisma.token.create({
+      //     data: token
+      //   });
+      // }));
+
+      if (!(fetchedTokens.length > 0)) {
+        this.logger.debug(`no tokens for ${whitelistMember.address}`);
+        await this.prisma.whitelistMember.update({
+          where: {
+            id: whitelistMember.id,
+          },
+          data: {
+            tokenProcessed: false,
+            tokenProcessedAttemps: whitelistMember.tokenProcessedAttemps + 1,
+          },
+        });
+      } else {
+        await this.prisma.whitelistMember.update({
+          where: {
+            id: whitelistMember.id,
+          },
+          data: {
+            tokenProcessed: true,
+          },
+        });
+      }
+      this.logger.debug(`${jobRequest.address} stored`);
+    });
+  }
+
+  @Process({ name: MATIC_QUEUE_KEY_NAME, concurrency: 1 })
+  async processWhitelistMemberMatic(job: Job) {
+    this.logger.debug(`received job with id: ${job.id}`);
+    const { jobRequest } = job.data;
+    this.logger.debug(
+      `processing whitelist member address ${jobRequest.address}`,
+    );
+    const tokenBalance = await this.blockchainService.getNFTsPolygon(
+      jobRequest.address,
+    );
+    const accountBalance =
+      await this.blockchainService.getAccountBalancePolygon(jobRequest.address);
     const totalNFTs = tokenBalance.reduce(
       (accumulator, item) => accumulator + item.balance,
       0,

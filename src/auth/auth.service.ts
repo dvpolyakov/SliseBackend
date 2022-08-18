@@ -18,6 +18,7 @@ import { mapTokenChainType } from '../common/utils/token-mapper';
 import { AuthWhitelistMember } from './requests/auth-whitelistmember-request';
 import {
   ETH_QUEUE_KEY_NAME,
+  MATIC_QUEUE_KEY_NAME,
   SOL_QUEUE_KEY_NAME,
 } from '../common/utils/redis-consts';
 import { NetworkType } from '../common/enums/network-type';
@@ -154,7 +155,7 @@ export class AuthService {
         });
         break;
       case NetworkType.Polygon:
-        job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
+        job = await this.holdersQueue.add(MATIC_QUEUE_KEY_NAME, {
           jobRequest,
         });
         break;
@@ -167,14 +168,12 @@ export class AuthService {
         this.logger.debug(`unknown whitelist member ${request.address}`);
         break;
       default:
-        job = await this.holdersQueue.add(ETH_QUEUE_KEY_NAME, {
-          jobRequest,
-        });
+        this.logger.debug(`unknown whitelist member ${request.address}`);
         break;
     }
 
     this.logger.debug(
-      `whitelist member: ${request.address} will be processed with jobId: ${job.id}`,
+      `whitelist member: ${request.address} will be processed with jobId: ${job?.id}`,
     );
     return request.address;
   }
