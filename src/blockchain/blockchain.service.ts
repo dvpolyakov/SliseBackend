@@ -442,8 +442,4 @@ export class BlockchainService {
       .toPromise();
     return +response.data.result.value.amount;
   }
-
-  private randomIntFromInterval(min, max): number {
-    return Math.floor(Math.random() * (max - min + 1) + min);
-  }
 }
