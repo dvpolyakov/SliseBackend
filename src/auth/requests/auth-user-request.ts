@@ -6,7 +6,6 @@ import { NetworkType } from '../../common/enums/network-type';
 export class AuthUserRequest {
   @ApiProperty({ type: String })
   @IsString()
-  @Transform((address) => address.value.toLowerCase())
   address: string;
 
   @ApiProperty({
