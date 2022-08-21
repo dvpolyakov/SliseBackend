@@ -376,11 +376,16 @@ export class BlockchainService {
         nftDescription: item.nftDescription,
         balance: +item.balance,
         nfts: item.items.map((nft) => {
+          let logo = nft.image;
+          if (nft.image.startsWith('ipfs')) {
+            const def = nft.image.substring(nft.image.lastIndexOf('/'));
+            logo = `https://ipfs.io/ipfs${def}`;
+          }
           return {
             tokenId: +nft.tokenId,
             name: nft.name,
             amount: nft.amount,
-            image: nft.image,
+            image: logo,
           };
         }),
       };

@@ -76,7 +76,29 @@ export class AnalyticsService {
   }
 
   public async test(id: string): Promise<any> {
-    return this.blockchainService.test(id);
+    const tokens = await this.prisma.token.findMany({
+      where: {
+        items: {
+          array_contains: ['ipfs'],
+        },
+      },
+    });
+
+    /* await Promise.all(
+      tokens.map(async (token) => {
+        const def = token.logo.substring(token.logo.lastIndexOf('/'));
+        const logo = `https://ipfs.io/ipfs${def}`;
+        await this.prisma.token.update({
+          where: {
+            id: token.id,
+          },
+          data: {
+            logo,
+          },
+        });
+      }),
+    ); */
+    return tokens.length;
   }
 
   public async solBalance(address: string): Promise<number> {
@@ -758,6 +780,9 @@ export class AnalyticsService {
           const tokens = await this.prisma.token.findMany({
             where: {
               whitelistMemberId: holder.id,
+              logo: {
+                not: null,
+              },
             },
             take: 3,
           });
