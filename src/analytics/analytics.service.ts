@@ -780,17 +780,14 @@ export class AnalyticsService {
           const tokens = await this.prisma.token.findMany({
             where: {
               whitelistMemberId: holder.id,
-              items: {
-                path: ['image'],
-                string_contains: 'https',
-              },
             },
             take: 3,
           });
           // TODO: sometimes null
+          // TODO: IPFS check?
           const collections: CollectionInfoResponse[] = tokens.map((token) => {
             const balances: TokenData[] = JSON.parse(token.items.toString());
-            const logo = token.logo ?? (balances[0]?.image || '');
+            const logo = balances[0]?.image || '';
             return {
               logo,
             };
