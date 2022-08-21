@@ -780,6 +780,10 @@ export class AnalyticsService {
           const tokens = await this.prisma.token.findMany({
             where: {
               whitelistMemberId: holder.id,
+              items: {
+                path: ['image'],
+                string_contains: 'https',
+              },
             },
             take: 3,
           });
