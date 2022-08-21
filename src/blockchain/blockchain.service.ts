@@ -7,7 +7,6 @@ import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { CollectionInfoResponse } from '../analytics/models/whitelist-statistics-response';
 import { TokenBalance } from '../analytics/models/token-info';
 import { AccountBalanceResponse } from './models/account-balance';
-import { PrismaService } from '../prisma/prisma.service';
 
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 const ETH_RPC = 'https://rpc.ankr.com/eth';

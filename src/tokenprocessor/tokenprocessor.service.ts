@@ -69,7 +69,11 @@ export class TokenProcessorService {
       let fetchedTokens: any[] = [];
       const jobs: any[] = [];
       tokenBalance.map((token) =>
-        jobs.push(limit(() => this.processEthToken(whitelistMember.id, token))),
+        jobs.push(
+          limit(() =>
+            this.processEvmToken(whitelistMember.id, token, 'ethereum'),
+          ),
+        ),
       );
       fetchedTokens = await Promise.all(jobs);
       this.logger.debug(
@@ -150,7 +154,11 @@ export class TokenProcessorService {
       let fetchedTokens: any[] = [];
       const jobs: any[] = [];
       tokenBalance.map((token) =>
-        jobs.push(limit(() => this.processEthToken(whitelistMember.id, token))),
+        jobs.push(
+          limit(() =>
+            this.processEvmToken(whitelistMember.id, token, 'polygon'),
+          ),
+        ),
       );
       fetchedTokens = await Promise.all(jobs);
       this.logger.debug(
@@ -192,15 +200,16 @@ export class TokenProcessorService {
     });
   }
 
-  private async processEthToken(
+  private async processEvmToken(
     whitelistMemberId: string,
     token: TokenBalance,
+    chain: string,
   ): Promise<any> {
     let collectionInfo: CollectionInfoResponse = null;
     try {
       collectionInfo = await this.blockchainService.getCollectionInfo(
         token.contractAddress,
-        'ethereum',
+        chain,
       );
 
       /* if(!collectionInfo?.logo){
