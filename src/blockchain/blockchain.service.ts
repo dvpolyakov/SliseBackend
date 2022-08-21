@@ -7,7 +7,6 @@ import { LAMPORTS_PER_SOL } from '@solana/web3.js';
 import { CollectionInfoResponse } from '../analytics/models/whitelist-statistics-response';
 import { TokenBalance } from '../analytics/models/token-info';
 import { AccountBalanceResponse } from './models/account-balance';
-import { PrismaService } from '../prisma/prisma.service';
 
 const SOL_RPC = 'https://api.mainnet-beta.solana.com';
 const ETH_RPC = 'https://rpc.ankr.com/eth';
@@ -18,34 +17,15 @@ const SOL_QUICKNODE =
 export class BlockchainService {
   private readonly logger = new Logger(BlockchainService.name);
 
-  private readonly sdkPrivatKey = randomPrivateKey();
-
-  private readonly etherspotSDK;
+  private readonly sdkPrivateKey = randomPrivateKey();
 
   private readonly Web3 = require('web3');
-
-  private ethers = require('ethers');
-
-  private readonly provider;
-
-  private readonly PosClient;
 
   constructor(
     private readonly httpService: HttpService,
     @InjectRedis() private readonly redis: Redis,
-    private readonly prisma: PrismaService,
   ) {
-    this.etherspotSDK = new Sdk(this.sdkPrivatKey, {
-      networkName: 'mainnet' as NetworkNames,
-    });
     this.Web3 = new this.Web3(new this.Web3.providers.HttpProvider(ETH_RPC));
-
-    this.provider = new this.ethers.providers.JsonRpcProvider({
-      url: 'https://holy-summer-wildflower.discover.quiknode.pro/e42546214ee1fb81233b1beeaa416b1e6979570e/',
-      headers: {
-        'x-qn-api-version': 1,
-      },
-    });
   }
 
   public async test(id: string): Promise<any> {
@@ -85,13 +65,11 @@ export class BlockchainService {
 
       const { data } = response;
       const collectionStats = await this.getCollectionStats(address, network);
-      const result: CollectionInfoResponse = {
+      return {
         totalSupply: data.total || 0,
         logo: data.contract.metadata.thumbnail_url,
         ...collectionStats,
       };
-
-      return result;
     } catch (e) {
       this.logger.debug(`error processing token ${address} ${e.toString()}`);
       return null;
@@ -190,29 +168,7 @@ export class BlockchainService {
 
   public async getNFTsEthereum(address: string): Promise<TokenBalance[]> {
     try {
-      const sdk = this.getNewSdk(NetworkNames.Mainnet);
-      const data = await sdk.getNftList({
-        account: address,
-      });
-      return data.items.map((item) => {
-        return {
-          contractName: item.contractName,
-          contractSymbol: item.contractSymbol,
-          contractAddress: item.contractAddress.toLowerCase(),
-          tokenType: item.tokenType,
-          nftVersion: item.nftVersion,
-          nftDescription: item.nftDescription,
-          balance: +item.balance,
-          nfts: item.items.map((nft) => {
-            return {
-              tokenId: +nft.tokenId,
-              name: nft.name,
-              amount: nft.amount,
-              image: nft.image,
-            };
-          }),
-        };
-      });
+      return await this.getEvmNfts(address, NetworkNames.Mainnet);
     } catch {
       this.logger.debug(`error processing address ${address}`);
       return [];
@@ -221,29 +177,7 @@ export class BlockchainService {
 
   public async getNFTsPolygon(address: string): Promise<TokenBalance[]> {
     try {
-      const sdk = this.getNewSdk(NetworkNames.Matic);
-      const data = await sdk.getNftList({
-        account: address,
-      });
-      return data.items.map((item) => {
-        return {
-          contractName: item.contractName,
-          contractSymbol: item.contractSymbol,
-          contractAddress: item.contractAddress.toLowerCase(),
-          tokenType: item.tokenType,
-          nftVersion: item.nftVersion,
-          nftDescription: item.nftDescription,
-          balance: +item.balance,
-          nfts: item.items.map((nft) => {
-            return {
-              tokenId: +nft.tokenId,
-              name: nft.name,
-              amount: nft.amount,
-              image: nft.image,
-            };
-          }),
-        };
-      });
+      return await this.getEvmNfts(address, NetworkNames.Matic);
     } catch {
       this.logger.debug(`error processing address ${address}`);
       return [];
@@ -314,7 +248,7 @@ export class BlockchainService {
   }
 
   private getNewSdk(network: NetworkNames): Sdk {
-    return new Sdk(this.sdkPrivatKey, {
+    return new Sdk(this.sdkPrivateKey, {
       networkName: network,
     });
   }
@@ -418,9 +352,39 @@ export class BlockchainService {
   private fix = (num: any, toFixed: number) =>
     Number(num.toFixed(toFixed).match(/\d+(?:\.\d+)?/)[0]).toFixed(toFixed);
 
+  // TODO: fix ipfs links
   private getIPFSLink(ipfs: string): string {
     const token = ipfs.substring(ipfs.indexOf('/') + 1, ipfs.length);
     return `https://ipfs.io/ipfs/${token}`;
+  }
+
+  private async getEvmNfts(
+    address: string,
+    network: NetworkNames,
+  ): Promise<TokenBalance[]> {
+    const sdk = this.getNewSdk(network);
+    const data = await sdk.getNftList({
+      account: address,
+    });
+    return data.items.map((item) => {
+      return {
+        contractName: item.contractName,
+        contractSymbol: item.contractSymbol,
+        contractAddress: item.contractAddress.toLowerCase(),
+        tokenType: item.tokenType,
+        nftVersion: item.nftVersion,
+        nftDescription: item.nftDescription,
+        balance: +item.balance,
+        nfts: item.items.map((nft) => {
+          return {
+            tokenId: +nft.tokenId,
+            name: nft.name,
+            amount: nft.amount,
+            image: nft.image,
+          };
+        }),
+      };
+    });
   }
 
   private async getSolSupply(address: string): Promise<number> {
