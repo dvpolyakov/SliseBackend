@@ -651,6 +651,8 @@ export class AnalyticsService {
         group by "Token"."contractAddress", "Token"."contractName"
         order by totalHoldings desc
         limit ${QUERY_LIMIT};`;
+
+      // TODO: Probably change searching collections to getting first 3 nfts
       await Promise.all(
         mutualHoldings.map(async (holding) => {
           let token = await this.prisma.token.findFirst({
