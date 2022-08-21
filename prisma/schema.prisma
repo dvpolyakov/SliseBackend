@@ -85,6 +85,7 @@ model WhitelistMemberInfo {
   twitterFollowers  Int?
   discord           String?
   whitelistMember   WhitelistMember @relation(fields: [whitelistMemberId], references: [id])
+  createdAt  DateTime    @default(now())
   whitelistMemberId String          @unique
 }
 
